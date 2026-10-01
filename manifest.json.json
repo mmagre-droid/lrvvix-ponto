@@ -1,0 +1,15 @@
+{
+  "name": "LRVIX - Controlo de Ponto",
+  "short_name": "LRVIX Ponto",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E1117",
+  "theme_color": "#0E1117",
+  "icons": [
+    {
+      "src": "icone.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
