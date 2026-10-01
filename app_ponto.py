@@ -23,7 +23,6 @@ st.set_page_config(
 )
 
 
-# --- CLASSE PROFISSIONAL DO TELEGRAM ---
 class TelegramNotifier:
 
   def __init__(self, token: str):
@@ -40,14 +39,9 @@ class TelegramNotifier:
     }
     try:
       response = requests.post(url, json=payload, timeout=10)
-      response_data = response.json()
-      if response_data.get("ok"):
-        return True
-      else:
-        logger.error(f"Erro do Telegram: {response_data.get('description')}")
-        return False
+      return response.json().get("ok", False)
     except Exception as e:
-      logger.error(f"Erro de conexão com o Telegram: {e}")
+      logger.error(f"Erro Telegram: {e}")
       return False
 
   def notificar_ponto(
@@ -66,374 +60,518 @@ class TelegramNotifier:
 
 telegram = TelegramNotifier(TELEGRAM_BOT_TOKEN)
 
-# --- CONTROLE DE SESSÃO PARA LOGIN ---
-if "logado" not in st.session_state:
-  st.session_state.logado = False
-if "usuario_nome" not in st.session_state:
+# ==========================================
+# CONTROLE DE SESSÃO E LOGIN
+# ==========================================
+if "autenticado" not in st.session_state:
+  st.session_state.autenticado = False
   st.session_state.usuario_nome = ""
-if "usuario_perfil" not in st.session_state:
   st.session_state.usuario_perfil = ""
-if "usuario_cpf" not in st.session_state:
   st.session_state.usuario_cpf = ""
 
-# --- TELA DE LOGIN ---
-if not st.session_state.logado:
-  st.title("⚡ LRVIX - ACESSO AO SISTEMA")
-  st.write("Digite seu CPF ou Nome para acessar o sistema de ponto.")
+if not st.session_state.autenticado:
+  st.title("🔐 LRVIX - ACESSO AO SISTEMA")
+  st.write("Insira seu CPF cadastrado na tabela de Técnicos para entrar.")
 
-  input_login = st.text_input("Nome ou CPF do Usuário")
+  with st.form("form_login"):
+    cpf_input = st.text_input("CPF (Somente números)")
+    senha_input = st.text_input("Senha", type="password")
+    botao_login = st.form_submit_button("Entrar", use_container_width=True)
 
-  if st.button("Entrar", type="primary"):
-    if input_login.strip():
-      try:
-        # Tenta buscar por CPF ou Nome na tabela TECNICOS
-        res = (
-            supabase.table("TECNICOS")
-            .select("nome, cpf, perfil, telegram_chat_id")
-            .or_(f"nome.ilike.%{input_login}%,cpf.eq.{input_login}")
-            .execute()
-        )
-
-        if res.data:
-          user_data = res.data[0]
-          st.session_state.logado = True
-          st.session_state.usuario_nome = user_data["nome"]
-          st.session_state.usuario_cpf = user_data["cpf"]
-          # Se a coluna perfil existir, usa ela; senão, define TÉCNICO por padrão
-          st.session_state.usuario_perfil = user_data.get("perfil", "TECNICO")
-          st.session_state.telegram_chat_id = user_data.get(
-              "telegram_chat_id"
+    if botao_login:
+      if not cpf_input:
+        st.warning("⚠️ Por favor, informe o seu CPF.")
+      else:
+        try:
+          cpf_limpo = "".join(filter(str.isdigit, cpf_input)).zfill(11)
+          res_login = (
+              supabase.table("TECNICOS")
+              .select("nome, cpf, email, telefone")
+              .eq("cpf", cpf_limpo)
+              .execute()
           )
-          st.success(
-              f"Bem-vindo(a), {st.session_state.usuario_nome}! Entrando..."
-          )
-          st.rerun()
-        else:
-          st.error(
-              "⚠️ Usuário não encontrado. Verifique os dados informados."
-          )
-      except Exception as e:
-        st.error(f"Erro ao realizar login: {e}")
-    else:
-      st.warning("Por favor, digite seu nome ou CPF.")
 
+          if res_login.data:
+            usuario = res_login.data[0]
+            st.session_state.autenticado = True
+            st.session_state.usuario_nome = usuario["nome"]
+            st.session_state.usuario_cpf = str(usuario["cpf"]).zfill(11)
+
+            if st.session_state.usuario_cpf == "08429076700":
+              st.session_state.usuario_perfil = "gestor"
+            else:
+              st.session_state.usuario_perfil = "tecnico"
+
+            st.success(
+                f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!"
+            )
+            st.rerun()
+          else:
+            st.error("❌ CPF não encontrado na tabela TECNICOS.")
+        except Exception as e:
+          st.error(f"Erro ao conectar com o banco: {e}")
+  st.stop()
+
+# ==========================================
+# APLICAÇÃO PRINCIPAL
+# ==========================================
+st.sidebar.title(f"⚡ Olá, {st.session_state.usuario_nome}")
+st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
+if st.sidebar.button("🚪 Sair / Logout", use_container_width=True):
+  st.session_state.autenticado = False
+  st.session_state.usuario_nome = ""
+  st.session_state.usuario_perfil = ""
+  st.session_state.usuario_cpf = ""
+  st.rerun()
+
+# Define o menu de acordo com o perfil (Gestor não vê "Registrar Ponto")
+if st.session_state.usuario_perfil == "gestor":
+  opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
 else:
-  # --- MENU LATERAL ---
-  st.sidebar.title(f"⚡ Olá, {st.session_state.usuario_nome}")
-  st.sidebar.write(f"Perfil: **{st.session_state.usuario_perfil}**")
+  opcoes_menu = [
+      "Registrar Ponto",
+      "Gestão de Lançamentos",
+      "📅 Calendário de Folgas",
+  ]
 
-  if st.sidebar.button("🚪 Sair / Logout"):
-    st.session_state.logado = False
-    st.session_state.usuario_nome = ""
-    st.session_state.usuario_perfil = ""
-    st.session_state.usuario_cpf = ""
-    st.rerun()
+menu = st.sidebar.radio("Navegação", opcoes_menu)
 
-  st.sidebar.divider()
-  st.sidebar.title("Navegação")
+# ==========================================
+# ABA 1: REGISTRAR PONTO (Apenas Técnicos)
+# ==========================================
+if menu == "Registrar Ponto":
+  st.title("⚡ LRVIX - CONTROLE DE PONTO")
+  st.write(
+      f"Registrando ponto para: **{st.session_state.usuario_nome}**"
+  )
 
-  # Define as opções do menu com base no perfil
-  opcoes_menu = ["Gestão de Lançamentos", "Calendário de Folgas"]
-  if st.session_state.usuario_perfil == "GESTOR":
-    opcoes_menu.insert(0, "Registrar Ponto")
-  else:
-    opcoes_menu.insert(0, "Registrar Ponto")
-
-  menu = st.sidebar.radio("Ir para", opcoes_menu)
-
-  # ==========================================
-  # ABA 1: REGISTRAR PONTO
-  # ==========================================
-  if menu == "Registrar Ponto":
-    st.title("⚡ LRVIX - CONTROLE DE PONTO")
-    st.write(
-        f"Registrando ponto para: **{st.session_state.usuario_nome}**"
-    )
-
-    tecnico_nome = st.session_state.usuario_nome
+  try:
     tecnico_cpf = st.session_state.usuario_cpf
-    chat_id = st.session_state.get("telegram_chat_id")
+    tecnico_nome = st.session_state.usuario_nome
 
-    if not chat_id:
-      st.warning(
-          "⚠️ O seu 'telegram_chat_id' não está configurado no cadastro."
-      )
+    res_tec = (
+        supabase.table("TECNICOS")
+        .select("telegram_chat_id")
+        .eq("cpf", tecnico_cpf)
+        .execute()
+    )
+    chat_id = res_tec.data[0].get("telegram_chat_id") if res_tec.data else None
 
     agora = datetime.now()
     hoje = agora.date().isoformat()
-    horario_atual_str = agora.strftime("%H:%M")
+    horario_atual_str = agora.strftime("%H:%M:%S")
+    horario_exibicao = agora.strftime("%H:%M")
     data_formatada = agora.strftime("%d/%m/%Y")
 
-    try:
-      res_logs = (
-          supabase.table("controle_ponto")
-          .select("tipo_ponto, horario, data")
-          .eq("cpf", tecnico_cpf)
-          .eq("data", hoje)
-          .order("horario", desc=True)
-          .execute()
+    res_hoje = (
+        supabase.table("CONTROLE_PONTO")
+        .select("*")
+        .eq("cpf", tecnico_cpf)
+        .eq("data", hoje)
+        .execute()
+    )
+
+    registro_atual = res_hoje.data[0] if res_hoje.data else {}
+
+    tem_entrada = bool(registro_atual.get("entrada"))
+    tem_saida_almoco = bool(registro_atual.get("saida_almoco"))
+    tem_retorno_almoco = bool(registro_atual.get("retorno_almoco"))
+    tem_saida = bool(registro_atual.get("saida"))
+
+
+    def validar_intervalo(ultimo_horario_str):
+      if not ultimo_horario_str:
+        return True, ""
+      ultimo_dt = datetime.strptime(
+          f"{hoje} {ultimo_horario_str}", "%Y-%m-%d %H:%M:%S"
       )
+      diferenca = agora - ultimo_dt
+      if diferenca < timedelta(hours=1):
+        tempo_faltando = timedelta(hours=1) - diferenca
+        minutos_restantes = int(tempo_faltando.total_seconds() // 60)
+        return (
+            False,
+            f"⏳ Aguarde mais {minutos_restantes} minuto(s) para bater o"
+            " próximo ponto (intervalo mínimo de 1 hora).",
+        )
+      return True, ""
 
-      registros = res_logs.data or []
-      tipos_registrados = [
-          item["tipo_ponto"].upper()
-          for item in registros
-          if item.get("tipo_ponto")
+
+    if not tem_entrada:
+      if st.button("🟢 REGISTRAR ENTRADA", use_container_width=True):
+        dados_upsert = {
+            "cpf": tecnico_cpf,
+            "data": hoje,
+            "entrada": horario_atual_str,
+        }
+        supabase.table("CONTROLE_PONTO").upsert(
+            dados_upsert, on_conflict="cpf,data"
+        ).execute()
+        if chat_id:
+          telegram.notificar_ponto(
+              str(chat_id),
+              tecnico_nome,
+              "ENTRADA",
+              horario_exibicao,
+              data_formatada,
+          )
+        st.success(f"ENTRADA registrada às {horario_exibicao}!")
+        st.rerun()
+
+    elif not tem_saida_almoco:
+      valido, aviso = validar_intervalo(registro_atual.get("entrada"))
+      if not valido:
+        st.warning(aviso)
+      if st.button(
+          "🟡 REGISTRAR SAÍDA ALMOÇO",
+          use_container_width=True,
+          disabled=not valido,
+      ):
+        dados_upsert = {
+            "cpf": tecnico_cpf,
+            "data": hoje,
+            "saida_almoco": horario_atual_str,
+        }
+        supabase.table("CONTROLE_PONTO").upsert(
+            dados_upsert, on_conflict="cpf,data"
+        ).execute()
+        if chat_id:
+          telegram.notificar_ponto(
+              str(chat_id),
+              tecnico_nome,
+              "SAÍDA ALMOÇO",
+              horario_exibicao,
+              data_formatada,
+          )
+        st.success(f"SAÍDA ALMOÇO registrada às {horario_exibicao}!")
+        st.rerun()
+
+    elif not tem_retorno_almoco:
+      valido, aviso = validar_intervalo(registro_atual.get("saida_almoco"))
+      if not valido:
+        st.warning(aviso)
+      if st.button(
+          "🔵 REGISTRAR RETORNO ALMOÇO",
+          use_container_width=True,
+          disabled=not valido,
+      ):
+        dados_upsert = {
+            "cpf": tecnico_cpf,
+            "data": hoje,
+            "retorno_almoco": horario_atual_str,
+        }
+        supabase.table("CONTROLE_PONTO").upsert(
+            dados_upsert, on_conflict="cpf,data"
+        ).execute()
+        if chat_id:
+          telegram.notificar_ponto(
+              str(chat_id),
+              tecnico_nome,
+              "RETORNO ALMOÇO",
+              horario_exibicao,
+              data_formatada,
+          )
+        st.success(f"RETORNO ALMOÇO registrado às {horario_exibicao}!")
+        st.rerun()
+
+    elif not tem_saida:
+      valido, aviso = validar_intervalo(registro_atual.get("retorno_almoco"))
+      if not valido:
+        st.warning(aviso)
+      if st.button(
+          "🔴 REGISTRAR SAÍDA", use_container_width=True, disabled=not valido
+      ):
+        dados_upsert = {
+            "cpf": tecnico_cpf,
+            "data": hoje,
+            "saida": horario_atual_str,
+        }
+        supabase.table("CONTROLE_PONTO").upsert(
+            dados_upsert, on_conflict="cpf,data"
+        ).execute()
+        if chat_id:
+          telegram.notificar_ponto(
+              str(chat_id),
+              tecnico_nome,
+              "SAÍDA",
+              horario_exibicao,
+              data_formatada,
+          )
+        st.success(f"SAÍDA registrada às {horario_exibicao}!")
+        st.rerun()
+    else:
+      st.success("✅ Todos os pontos de hoje já foram registrados!")
+
+    st.subheader("📊 Seus Registros de Hoje")
+    if registro_atual:
+      df_regs = pd.DataFrame([registro_atual])
+      colunas_desejadas = [
+          c
+          for c in [
+              "data",
+              "entrada",
+              "saida_almoco",
+              "retorno_almoco",
+              "saida",
+          ]
+          if c in df_regs.columns
       ]
-
-      pode_bater = True
-      tempo_restante_msg = ""
-
-      if registros:
-        ultima_batida_str = str(registros[0]["horario"])
-        partes_horario = ultima_batida_str.split(":")
-        h, m = int(partes_horario[0]), int(partes_horario[1])
-        ultima_batida_dt = agora.replace(
-            hour=h, minute=m, second=0, microsecond=0
+      df_regs = df_regs[colunas_desejadas].copy()
+      df_regs.columns = [
+          c.upper().replace("_", " ") for c in df_regs.columns
+      ]
+      if "DATA" in df_regs.columns:
+        df_regs["DATA"] = pd.to_datetime(df_regs["DATA"]).dt.strftime(
+            "%d/%m/%Y"
         )
-        diferenca = agora - ultima_batida_dt
+      st.dataframe(df_regs, use_container_width=True, hide_index=True)
+    else:
+      st.info("Nenhum ponto registrado hoje ainda.")
 
-        if diferenca < timedelta(hours=1):
-          pode_bater = False
-          minutos_restantes = int((timedelta(hours=1) - diferenca).seconds / 60)
-          tempo_restante_msg = (
-              f"⏳ Você registrou um ponto recentemente às"
-              f" `{partes_horario[0]}:{partes_horario[1]}`. Aguarde mais"
-              f" **{minutos_restantes} minutos** (intervalo mínimo de 1 hora)."
-          )
+  except Exception as e:
+    st.error(f"Erro ao registrar ponto: {e}")
 
-      if not pode_bater and len(tipos_registrados) < 4:
-        st.warning(tempo_restante_msg)
+# ==========================================
+# ABA 2: GESTÃO DE LANÇAMENTOS
+# ==========================================
+elif menu == "Gestão de Lançamentos":
+  st.title("🛠️ Gestão de Lançamentos e Espelho de Ponto")
 
-      if "ENTRADA" not in tipos_registrados:
-        if st.button("🟢 REGISTRAR ENTRADA", use_container_width=True):
-          if pode_bater:
-            supabase.table("controle_ponto").insert({
-                "cpf": tecnico_cpf,
-                "tipo_ponto": "ENTRADA",
-                "horario": horario_atual_str,
-                "data": hoje,
-            }).execute()
-            if chat_id:
-              telegram.notificar_ponto(
-                  str(chat_id),
-                  tecnico_nome,
-                  "ENTRADA",
-                  horario_atual_str,
-                  data_formatada,
-              )
-            st.success(f"ENTRADA registrada às {horario_atual_str}!")
-            st.rerun()
-          else:
-            st.error("Ação bloqueada: Respeite o intervalo mínimo de 1 hora.")
+  try:
+    res_ponto = supabase.table("CONTROLE_PONTO").select("*").execute()
+    dados_ponto = res_ponto.data or []
 
-      elif "SAÍDA ALMOÇO" not in tipos_registrados:
-        if st.button("🟡 REGISTRAR SAÍDA ALMOÇO", use_container_width=True):
-          if pode_bater:
-            supabase.table("controle_ponto").insert({
-                "cpf": tecnico_cpf,
-                "tipo_ponto": "SAÍDA ALMOÇO",
-                "horario": horario_atual_str,
-                "data": hoje,
-            }).execute()
-            if chat_id:
-              telegram.notificar_ponto(
-                  str(chat_id),
-                  tecnico_nome,
-                  "SAÍDA ALMOÇO",
-                  horario_atual_str,
-                  data_formatada,
-              )
-            st.success(f"SAÍDA ALMOÇO registrada às {horario_atual_str}!")
-            st.rerun()
-          else:
-            st.error("Ação bloqueada: Respeite o intervalo mínimo de 1 hora.")
+    res_tecnicos = supabase.table("TECNICOS").select("cpf, nome").execute()
+    mapa_tecnicos = {}
+    mapa_cpf_por_nome = {}
+    for t in res_tecnicos.data or []:
+      if t.get("cpf") and t.get("nome"):
+        cpf_limpo = "".join(filter(str.isdigit, str(t["cpf"]))).zfill(11)
+        mapa_tecnicos[cpf_limpo] = t["nome"]
+        mapa_cpf_por_nome[t["nome"]] = cpf_limpo
 
-      elif "RETORNO ALMOÇO" not in tipos_registrados:
-        if st.button("🔵 REGISTRAR RETORNO ALMOÇO", use_container_width=True):
-          if pode_bater:
-            supabase.table("controle_ponto").insert({
-                "cpf": tecnico_cpf,
-                "tipo_ponto": "RETORNO ALMOÇO",
-                "horario": horario_atual_str,
-                "data": hoje,
-            }).execute()
-            if chat_id:
-              telegram.notificar_ponto(
-                  str(chat_id),
-                  tecnico_nome,
-                  "RETORNO ALMOÇO",
-                  horario_atual_str,
-                  data_formatada,
-              )
-            st.success(f"RETORNO ALMOÇO registrado às {horario_atual_str}!")
-            st.rerun()
-          else:
-            st.error("Ação bloqueada: Respeite o intervalo mínimo de 1 hora.")
+    if dados_ponto:
+      for row in dados_ponto:
+        cpf_ponto = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(
+            11
+        )
+        row["nome_tecnico"] = mapa_tecnicos.get(cpf_ponto, "Desconhecido")
 
-      elif "SAÍDA" not in tipos_registrados:
-        if st.button("🔴 REGISTRAR SAÍDA", use_container_width=True):
-          if pode_bater:
-            supabase.table("controle_ponto").insert({
-                "cpf": tecnico_cpf,
-                "tipo_ponto": "SAÍDA",
-                "horario": horario_atual_str,
-                "data": hoje,
-            }).execute()
-            if chat_id:
-              telegram.notificar_ponto(
-                  str(chat_id),
-                  tecnico_nome,
-                  "SAÍDA",
-                  horario_atual_str,
-                  data_formatada,
-              )
-            st.success(f"SAÍDA registrada às {horario_atual_str}!")
-            st.rerun()
-          else:
-            st.error("Ação bloqueada: Respeite o intervalo mínimo de 1 hora.")
-      else:
-        st.success("✅ Todos os pontos de hoje já foram registrados!")
+      df = pd.DataFrame(dados_ponto)
 
-      st.subheader("📊 Seus Registros de Hoje")
-      if registros:
-        st.dataframe(registros, use_container_width=True)
-      else:
-        st.info("Nenhum ponto registrado hoje ainda.")
+      st.divider()
+      st.subheader("🔍 Filtros de Visualização")
 
-    except Exception as e:
-      st.error(f"Erro ao carregar os registros: {e}")
-
-  # ==========================================
-  # ABA 2: GESTÃO DE LANÇAMENTOS (COM EDIÇÃO ATIVADA)
-  # ==========================================
-  elif menu == "Gestão de Lançamentos":
-    st.title("🛠️ Gestão de Lançamentos e Espelho de Ponto")
-
-    try:
-      # Busca técnicos cadastrados
-      res_tec = supabase.table("TECNICOS").select("nome, cpf").execute()
-      lista_tecnicos = res_tec.data or []
-      mapa_cpfs = {t["nome"]: t["cpf"] for t in lista_tecnicos if t.get("nome")}
-      nomes_tecnicos = list(mapa_cpfs.keys())
-
-      st.markdown("### 🔍 Filtros de Visualização")
-      col1, col2, col3 = st.columns(3)
-
-      with col1:
-        # Se for técnico, fixa o nome dele; se for gestor, permite selecionar qualquer um
-        if st.session_state.usuario_perfil == "GESTOR":
-          tec_selecionado = st.selectbox(
-              "Selecione o Técnico", ["Todos"] + nomes_tecnicos
-          )
+      col_f1, col_f2, col_f3 = st.columns(3)
+      with col_f1:
+        if st.session_state.usuario_perfil == "tecnico":
+          filtro_tecnico = st.session_state.usuario_nome
+          st.text_input("Técnico", value=filtro_tecnico, disabled=True)
         else:
-          tec_selecionado = st.selectbox(
-              "Selecione o Técnico", [st.session_state.usuario_nome]
+          lista_tecnicos = sorted(list(df["nome_tecnico"].unique()))
+          filtro_tecnico = st.selectbox("Selecione o Técnico", lista_tecnicos)
+
+      with col_f2:
+        filtro_data_inicial = st.date_input("Data Inicial", value=None)
+      with col_f3:
+        filtro_data_final = st.date_input("Data Final", value=None)
+
+      if filtro_tecnico:
+        df = df[df["nome_tecnico"] == filtro_tecnico]
+
+      if "data" in df.columns and not df.empty:
+        df["data_dt"] = pd.to_datetime(df["data"]).dt.date
+        if filtro_data_inicial:
+          df = df[df["data_dt"] >= filtro_data_inicial]
+        if filtro_data_final:
+          df = df[df["data_dt"] <= filtro_data_final]
+        df = df.drop(columns=["data_dt"])
+
+      if df.empty:
+        st.warning("⚠ Nenhum registro encontrado para os filtros.")
+      else:
+        tabela_espelho = df[
+            ["data", "entrada", "saida_almoco", "retorno_almoco", "saida"]
+        ].copy()
+        tabela_espelho.columns = [
+            "DATA",
+            "ENTRADA",
+            "SAÍDA ALMOÇO",
+            "RETORNO ALMOÇO",
+            "SAÍDA",
+        ]
+        tabela_espelho["DATA"] = pd.to_datetime(
+            tabela_espelho["DATA"]
+        ).dt.strftime("%d/%m/%Y")
+        tabela_espelho = tabela_espelho.fillna("")
+
+        if st.session_state.usuario_perfil == "gestor":
+          habilitar_edicao = st.toggle(
+              "✏️ Habilitar Edição de Horários no Espelho", value=False
           )
-
-      with col2:
-        data_inicial = st.date_input(
-            "Data Inicial", value=None, format="DD/MM/YYYY"
-        )
-
-      with col3:
-        data_final = st.date_input(
-            "Data Final", value=None, format="DD/MM/YYYY"
-        )
-
-      # Botão para habilitar a edição
-      habilitar_edicao = st.toggle("✏️ Habilitar Edição de Horários no Espelho")
-
-      # Consulta base na tabela controle_ponto
-      query = supabase.table("controle_ponto").select("*")
-
-      if tec_selecionado != "Todos":
-        cpf_filtro = mapa_cpfs.get(tec_selecionado)
-        if cpf_filtro:
-          query = query.eq("cpf", cpf_filtro)
-
-      res_pontos = query.execute()
-      dados = res_pontos.data or []
-
-      if dados:
-        df = pd.DataFrame(dados)
-
-        # Filtro por data via pandas se informado
-        if data_inicial:
-          df = df[df["data"] >= str(data_inicial)]
-        if data_final:
-          df = df[df["data"] <= str(data_final)]
-
-        if not df.empty:
-          # Adiciona nome legível do técnico
-          mapa_nomes_rev = {v: k for k, v in mapa_cpfs.items()}
-          df["nome_tecnico"] = df["cpf"].map(mapa_nomes_rev)
 
           if habilitar_edicao:
             st.info(
-                "💡 Altere os horários ou dados diretamente na tabela abaixo e"
-                " clique em salvar."
+                "💡 Altere os horários diretamente na tabela abaixo e clique em"
+                " salvar."
             )
-            # Tabela interativa para edição completa
-            df_editado = st.data_editor(
-                df, use_container_width=True, key="editor_ponto_gestao"
+            tabela_editada = st.data_editor(
+                tabela_espelho, use_container_width=True, hide_index=True
             )
 
             if st.button("💾 Salvar Alterações", type="primary"):
-              with st.spinner("Salvando alterações no Supabase..."):
-                try:
-                  registros_atualizados = df_editado.to_dict(orient="records")
-                  for row in registros_atualizados:
-                    row_limpo = {
-                        k: v
-                        for k, v in row.items()
-                        if k
-                        in [
-                            "id",
-                            "cpf",
-                            "data",
-                            "horario",
-                            "tipo_ponto",
-                            "created_at",
-                        ]
-                        and pd.notna(v)
-                    }
-                    if "id" in row_limpo and pd.notna(row_limpo["id"]):
-                      rid = row_limpo.pop("id")
-                      supabase.table("controle_ponto").update(row_limpo).eq(
-                          "id", rid
-                      ).execute()
-                  st.success(
-                      "✅ Alterações salvas e sincronizadas com sucesso!"
+              with st.spinner("Salvando..."):
+                tec_cpf = mapa_cpf_por_nome.get(filtro_tecnico)
+                for _, row in tabela_editada.iterrows():
+                  data_iso = (
+                      datetime.strptime(row["DATA"], "%d/%m/%Y")
+                      .date()
+                      .isoformat()
                   )
-                  st.rerun()
-                except Exception as ex:
-                  st.error(f"Erro ao salvar alterações: {ex}")
+                  supabase.table("CONTROLE_PONTO").upsert(
+                      {
+                          "cpf": tec_cpf,
+                          "data": data_iso,
+                          "entrada": row["ENTRADA"] or None,
+                          "saida_almoco": row["SAÍDA ALMOÇO"] or None,
+                          "retorno_almoco": row["RETORNO ALMOÇO"] or None,
+                          "saida": row["SAÍDA"] or None,
+                      },
+                      on_conflict="cpf,data",
+                  ).execute()
+                st.success("✅ Alterações salvas com sucesso!")
+                st.rerun()
           else:
-            # Exibição padrão em formato de tabela limpa
-            colunas_exibir = [
-                col
-                for col in [
-                    "id",
-                    "nome_tecnico",
-                    "data",
-                    "horario",
-                    "tipo_ponto",
-                ]
-                if col in df.columns
-            ]
-            st.dataframe(df[colunas_exibir], use_container_width=True)
+            st.dataframe(
+                tabela_espelho, use_container_width=True, hide_index=True
+            )
         else:
-          st.info("Nenhum registro encontrado para os filtros selecionados.")
-      else:
-        st.info("Nenhum lançamento de ponto cadastrado.")
+          st.dataframe(tabela_espelho, use_container_width=True, hide_index=True)
+    else:
+      st.info("Nenhum lançamento encontrado.")
+  except Exception as e:
+    st.error(f"Erro ao carregar dados: {e}")
 
-    except Exception as e:
-      st.error(f"Erro ao carregar dados de gestão: {e}")
+# ==========================================
+# ABA 3: CALENDÁRIO DE FOLGAS
+# ==========================================
+elif menu == "📅 Calendário de Folgas":
+  st.title("📅 Calendário de Folgas dos Técnicos")
+  st.write(
+      "Consulte abaixo as folgas agendadas para os técnicos da equipe."
+      + (
+          " Como gestor, você pode adicionar ou remover folgas."
+          if st.session_state.usuario_perfil == "gestor"
+          else ""
+      )
+  )
 
-  # ==========================================
-  # ABA 3: CALENDÁRIO DE FOLGAS
-  # ==========================================
-  elif menu == "Calendário de Folgas":
-    st.title("📅 Calendário de Folgas")
-    st.info("Módulo de folgas integrado ao sistema.")
+  try:
+    # Carrega técnicos para os selects/mapeamentos
+    res_tecnicos = supabase.table("TECNICOS").select("cpf, nome").execute()
+    mapa_tecnicos = {}
+    mapa_cpf_por_nome = {}
+    for t in res_tecnicos.data or []:
+      if t.get("cpf") and t.get("nome"):
+        cpf_limpo = "".join(filter(str.isdigit, str(t["cpf"]))).zfill(11)
+        mapa_tecnicos[cpf_limpo] = t["nome"]
+        mapa_cpf_por_nome[t["nome"]] = cpf_limpo
+
+    # Carrega folgas cadastradas da tabela CALENDARIO_FOLGA
+    res_folgas = supabase.table("CALENDARIO_FOLGA").select("*").execute()
+    dados_folgas = res_folgas.data or []
+
+    for row in dados_folgas:
+      cpf_folga = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(11)
+      row["nome_tecnico"] = mapa_tecnicos.get(cpf_folga, "Desconhecido")
+
+    # Seção exclusiva para GESTORES adicionarem folgas
+    if st.session_state.usuario_perfil == "gestor":
+      st.divider()
+      st.subheader("➕ Agendar Nova Folga")
+      with st.form("form_cadastrar_folga"):
+        col_g1, col_g2, col_g3 = st.columns(3)
+        with col_g1:
+          tec_selecionado = st.selectbox(
+              "Técnico", options=sorted(list(mapa_cpf_por_nome.keys()))
+          )
+        with col_g2:
+          data_folga = st.date_input("Data da Folga")
+        with col_g3:
+          motivo_folga = st.text_input("Motivo / Descrição", value="Folga")
+
+        btn_salvar_folga = st.form_submit_button(
+            "💾 Salvar Folga", use_container_width=True
+        )
+
+        if btn_salvar_folga:
+          cpf_alvo = mapa_cpf_por_nome.get(tec_selecionado)
+          data_iso = data_folga.isoformat()
+          try:
+            supabase.table("CALENDARIO_FOLGA").upsert(
+                {
+                    "cpf": cpf_alvo,
+                    "data": data_iso,
+                    "motivo": motivo_folga,
+                },
+                on_conflict="cpf,data",
+            ).execute()
+            st.success(
+                f"✅ Folga agendada com sucesso para {tec_selecionado} em"
+                f" {data_folga.strftime('%d/%m/%Y')}!"
+            )
+            st.rerun()
+          except Exception as err:
+            st.error(f"Erro ao salvar folga: {err}")
+
+    st.divider()
+    st.subheader("📋 Lista de Folgas Cadastradas")
+
+    if dados_folgas:
+      df_folgas = pd.DataFrame(dados_folgas)
+      df_exibicao = df_folgas[["nome_tecnico", "data", "motivo"]].copy()
+      df_exibicao.columns = ["TÉCNICO", "DATA", "MOTIVO"]
+      df_exibicao["DATA"] = pd.to_datetime(df_exibicao["DATA"]).dt.strftime(
+          "%d/%m/%Y"
+      )
+      df_exibicao = df_exibicao.sort_values(by="DATA", ascending=True)
+
+      st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
+
+      # Se for gestor, permitir excluir folga cadastrada
+      if st.session_state.usuario_perfil == "gestor":
+        st.subheader("🗑️ Remover Folga")
+        with st.form("form_remover_folga"):
+          opcoes_exclusao = []
+          for _, r in df_exibicao.iterrows():
+            opcoes_exclusao.append(f"{r['TÉCNICO']} - {r['DATA']} ({r['MOTIVO']})")
+
+          folga_selecionada = st.selectbox(
+              "Selecione a folga para remover", options=opcoes_exclusao
+          )
+          btn_remover = st.form_submit_button(
+              "❌ Excluir Folga Selecionada", use_container_width=True
+          )
+
+          if btn_remover and folga_selecionada:
+            partes = folga_selecionada.split(" - ")
+            nome_tec = partes[0]
+            data_str = partes[1].split(" ")[0]
+            cpf_alvo = mapa_cpf_por_nome.get(nome_tec)
+            data_iso = (
+                datetime.strptime(data_str, "%d/%m/%Y").date().isoformat()
+            )
+
+            try:
+              supabase.table("CALENDARIO_FOLGA").delete().eq(
+                  "cpf", cpf_alvo
+              ).eq("data", data_iso).execute()
+              st.success("✅ Folga removida com sucesso!")
+              st.rerun()
+            except Exception as err:
+              st.error(f"Erro ao remover folga: {err}")
+    else:
+      st.info("Nenhuma folga cadastrada no sistema.")
+
+  except Exception as e:
+    st.error(f"Erro ao carregar o calendário de folgas: {e}")
