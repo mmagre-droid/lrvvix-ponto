@@ -5,6 +5,18 @@ import requests
 import streamlit as st
 from supabase import create_client
 
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(
+    page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="centered"
+)
+# Injeção de PWA e ícone personalizado para forçar o telemóvel a reconhecer
+pwa_code = """
+<link rel="manifest" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/manifest.json">
+<link rel="icon" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/icone.png">
+<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/icone.png">
+"""
+st.markdown(pwa_code, unsafe_allow_html=True)
+
 # --- CONFIGURAÇÕES DE LOG ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
