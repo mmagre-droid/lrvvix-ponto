@@ -9,7 +9,6 @@ from supabase import create_client
 st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="centered"
 )
-# Injeção de PWA e ícone personalizado para forçar o telemóvel a reconhecer
 pwa_code = """
 <link rel="manifest" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/manifest.json">
 <link rel="icon" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/icone.png">
@@ -131,7 +130,6 @@ if st.sidebar.button("🚪 Sair / Logout", use_container_width=True):
   st.session_state.usuario_cpf = ""
   st.rerun()
 
-# Define o menu de acordo com o perfil (Gestor não vê "Registrar Ponto")
 if st.session_state.usuario_perfil == "gestor":
   opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
 else:
@@ -348,14 +346,19 @@ elif menu == "Gestão de Lançamentos":
     res_ponto = supabase.table("CONTROLE_PONTO").select("*").execute()
     dados_ponto = res_ponto.data or []
 
-    res_tecnicos = supabase.table("TECNICOS").select("cpf, nome").execute()
+    res_tecnicos = (
+        supabase.table("TECNICOS").select("cpf, nome, liberado_ate").execute()
+    )
     mapa_tecnicos = {}
     mapa_cpf_por_nome = {}
+    mapa_liberacao = {}
+
     for t in res_tecnicos.data or []:
       if t.get("cpf") and t.get("nome"):
         cpf_limpo = "".join(filter(str.isdigit, str(t["cpf"]))).zfill(11)
         mapa_tecnicos[cpf_limpo] = t["nome"]
         mapa_cpf_por_nome[t["nome"]] = cpf_limpo
+        mapa_liberacao[cpf_limpo] = t.get("liberado_ate")
 
     if dados_ponto:
       for row in dados_ponto:
@@ -412,24 +415,34 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
-        # Chave de liberação baseada no CPF do técnico selecionado (garante unicidade)
+        # Identifica o CPF do técnico alvo e verifica no banco (Supabase) se está liberado
         cpf_tecnico_alvo = (
             st.session_state.usuario_cpf
             if st.session_state.usuario_perfil == "tecnico"
             else mapa_cpf_por_nome.get(filtro_tecnico)
         )
-        chave_liberacao = f"liberado_ate_cpf_{cpf_tecnico_alvo}"
-        agora_dt = datetime.now()
-        liberado_ate = st.session_state.get(chave_liberacao)
-        edicao_ativa = liberado_ate is not None and agora_dt < liberado_ate
 
-        # Controles exclusivos para o GESTOR gerenciar a liberação
+        agora_dt = datetime.now()
+        liberado_ate_str = mapa_liberacao.get(cpf_tecnico_alvo)
+
+        edicao_ativa = False
+        liberado_ate_dt = None
+
+        if liberado_ate_str:
+          try:
+            liberado_ate_dt = datetime.fromisoformat(liberado_ate_str)
+            if agora_dt < liberado_ate_dt:
+              edicao_ativa = True
+          except Exception:
+            pass
+
+        # Controles exclusivos para o GESTOR gerenciar a liberação no Banco
         if st.session_state.usuario_perfil == "gestor":
           st.divider()
           st.subheader("⚙ Controle de Edição (Gestor)")
 
           if edicao_ativa:
-            tempo_restante = liberado_ate - agora_dt
+            tempo_restante = liberado_ate_dt - agora_dt
             horas_restantes = int(tempo_restante.total_seconds() // 3600)
             minutos_restantes = int(
                 (tempo_restante.total_seconds() % 3600) // 60
@@ -439,22 +452,34 @@ elif menu == "Gestão de Lançamentos":
                 f" {horas_restantes}h {minutos_restantes}m."
             )
             if st.button("🔒 Revogar Liberação Agora"):
-              st.session_state[chave_liberacao] = None
-              st.rerun()
+              try:
+                supabase.table("TECNICOS").update(
+                    {"liberado_ate": None}
+                ).eq("cpf", cpf_tecnico_alvo).execute()
+                st.success("Liberação revogada com sucesso!")
+                st.rerun()
+              except Exception as err:
+                st.error(f"Erro ao revogar: {err}")
           else:
             st.info(
                 f"🔒 A edição para **{filtro_tecnico}** está bloqueada. O"
                 " gestor pode liberar por 24 horas."
             )
             if st.button("🔓 Liberar Edição por 24 Horas", type="primary"):
-              st.session_state[chave_liberacao] = agora_dt + timedelta(hours=24)
-              st.success(f"Edição liberada para {filtro_tecnico} por 24 horas!")
-              st.rerun()
+              novo_limite = (agora_dt + timedelta(hours=24)).isoformat()
+              try:
+                supabase.table("TECNICOS").update(
+                    {"liberado_ate": novo_limite}
+                ).eq("cpf", cpf_tecnico_alvo).execute()
+                st.success(f"Edição liberada para {filtro_tecnico} por 24 horas!")
+                st.rerun()
+              except Exception as err:
+                st.error(f"Erro ao liberar: {err}")
 
-        # Se a edição estiver ativa (seja logado como técnico ou gestor visualizando o técnico liberado)
+        # Exibição para o Técnico ou Gestor quando a edição está ativa
         if edicao_ativa:
           if st.session_state.usuario_perfil == "tecnico":
-            tempo_restante = liberado_ate - agora_dt
+            tempo_restante = liberado_ate_dt - agora_dt
             horas_restantes = int(tempo_restante.total_seconds() // 3600)
             minutos_restantes = int(
                 (tempo_restante.total_seconds() % 3600) // 60
@@ -470,7 +495,6 @@ elif menu == "Gestão de Lançamentos":
 
           if st.button("💾 Salvar Alterações", type="primary"):
             with st.spinner("Salvando..."):
-              tec_cpf = cpf_tecnico_alvo
               for _, row in tabela_editada.iterrows():
                 data_iso = (
                     datetime.strptime(row["DATA"], "%d/%m/%Y")
@@ -479,7 +503,7 @@ elif menu == "Gestão de Lançamentos":
                 )
                 supabase.table("CONTROLE_PONTO").upsert(
                     {
-                        "cpf": tec_cpf,
+                        "cpf": cpf_tecnico_alvo,
                         "data": data_iso,
                         "entrada": row["ENTRADA"] or None,
                         "saida_almoco": row["SAÍDA ALMOÇO"] or None,
