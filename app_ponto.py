@@ -412,15 +412,21 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
-        # Lógica exclusiva para o GESTOR liberar a edição por 24 horas
+        # Chave de liberação baseada no CPF do técnico selecionado (garante unicidade)
+        cpf_tecnico_alvo = (
+            st.session_state.usuario_cpf
+            if st.session_state.usuario_perfil == "tecnico"
+            else mapa_cpf_por_nome.get(filtro_tecnico)
+        )
+        chave_liberacao = f"liberado_ate_cpf_{cpf_tecnico_alvo}"
+        agora_dt = datetime.now()
+        liberado_ate = st.session_state.get(chave_liberacao)
+        edicao_ativa = liberado_ate is not None and agora_dt < liberado_ate
+
+        # Controles exclusivos para o GESTOR gerenciar a liberação
         if st.session_state.usuario_perfil == "gestor":
           st.divider()
-          st.subheader("⚙️ Controle de Edição (Gestor)")
-
-          chave_liberacao = f"liberado_ate_{filtro_tecnico}"
-          agora_dt = datetime.now()
-          liberado_ate = st.session_state.get(chave_liberacao)
-          edicao_ativa = liberado_ate is not None and agora_dt < liberado_ate
+          st.subheader("⚙ Controle de Edição (Gestor)")
 
           if edicao_ativa:
             tempo_restante = liberado_ate - agora_dt
@@ -435,10 +441,6 @@ elif menu == "Gestão de Lançamentos":
             if st.button("🔒 Revogar Liberação Agora"):
               st.session_state[chave_liberacao] = None
               st.rerun()
-
-            habilitar_edicao = st.toggle(
-                "✏️ Habilitar Edição de Horários no Espelho", value=True
-            )
           else:
             st.info(
                 f"🔒 A edição para **{filtro_tecnico}** está bloqueada. O"
@@ -448,37 +450,52 @@ elif menu == "Gestão de Lançamentos":
               st.session_state[chave_liberacao] = agora_dt + timedelta(hours=24)
               st.success(f"Edição liberada para {filtro_tecnico} por 24 horas!")
               st.rerun()
-            habilitar_edicao = False
 
-          if habilitar_edicao and edicao_ativa:
-            tabela_editada = st.data_editor(
-                tabela_espelho, use_container_width=True, hide_index=True
+        # Se a edição estiver ativa (seja logado como técnico ou gestor visualizando o técnico liberado)
+        if edicao_ativa:
+          if st.session_state.usuario_perfil == "tecnico":
+            tempo_restante = liberado_ate - agora_dt
+            horas_restantes = int(tempo_restante.total_seconds() // 3600)
+            minutos_restantes = int(
+                (tempo_restante.total_seconds() % 3600) // 60
+            )
+            st.success(
+                f"🔓 Seu gestor liberou a edição dos seus lançamentos."
+                f" Expira em {horas_restantes}h {minutos_restantes}m."
             )
 
-            if st.button("💾 Salvar Alterações", type="primary"):
-              with st.spinner("Salvando..."):
-                tec_cpf = mapa_cpf_por_nome.get(filtro_tecnico)
-                for _, row in tabela_editada.iterrows():
-                  data_iso = (
-                      datetime.strptime(row["DATA"], "%d/%m/%Y")
-                      .date()
-                      .isoformat()
-                  )
-                  supabase.table("CONTROLE_PONTO").upsert(
-                      {
-                          "cpf": tec_cpf,
-                          "data": data_iso,
-                          "entrada": row["ENTRADA"] or None,
-                          "saida_almoco": row["SAÍDA ALMOÇO"] or None,
-                          "retorno_almoco": row["RETORNO ALMOÇO"] or None,
-                          "saida": row["SAÍDA"] or None,
-                      },
-                      on_conflict="cpf,data",
-                  ).execute()
-                st.success("✅ Alterações salvas com sucesso!")
-                st.rerun()
+          tabela_editada = st.data_editor(
+              tabela_espelho, use_container_width=True, hide_index=True
+          )
+
+          if st.button("💾 Salvar Alterações", type="primary"):
+            with st.spinner("Salvando..."):
+              tec_cpf = cpf_tecnico_alvo
+              for _, row in tabela_editada.iterrows():
+                data_iso = (
+                    datetime.strptime(row["DATA"], "%d/%m/%Y")
+                    .date()
+                    .isoformat()
+                )
+                supabase.table("CONTROLE_PONTO").upsert(
+                    {
+                        "cpf": tec_cpf,
+                        "data": data_iso,
+                        "entrada": row["ENTRADA"] or None,
+                        "saida_almoco": row["SAÍDA ALMOÇO"] or None,
+                        "retorno_almoco": row["RETORNO ALMOÇO"] or None,
+                        "saida": row["SAÍDA"] or None,
+                    },
+                    on_conflict="cpf,data",
+                ).execute()
+              st.success("✅ Alterações salvas com sucesso!")
+              st.rerun()
         else:
-          # Perfil Técnico: Visualização limpa, sem botões de liberação ou edição
+          if st.session_state.usuario_perfil == "tecnico":
+            st.info(
+                "🔒 Seus lançamentos estão bloqueados para edição. Solicite"
+                " liberação ao gestor se precisar alterar algo."
+            )
           st.dataframe(tabela_espelho, use_container_width=True, hide_index=True)
     else:
       st.info("Nenhum lançamento encontrado.")
