@@ -29,11 +29,6 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- CONFIGURAÇÃO DO TELEGRAM ---
 TELEGRAM_BOT_TOKEN = "8795798031:AAEjelcTRk_XQvKWak0-QCgDsl54PMq25l8"
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(
-    page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="centered"
-)
-
 
 class TelegramNotifier:
 
@@ -417,16 +412,45 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
+        # Lógica exclusiva para o GESTOR liberar a edição por 24 horas
         if st.session_state.usuario_perfil == "gestor":
-          habilitar_edicao = st.toggle(
-              "✏️ Habilitar Edição de Horários no Espelho", value=False
-          )
+          st.divider()
+          st.subheader("⚙️ Controle de Edição (Gestor)")
 
-          if habilitar_edicao:
-            st.info(
-                "💡 Altere os horários diretamente na tabela abaixo e clique em"
-                " salvar."
+          chave_liberacao = f"liberado_ate_{filtro_tecnico}"
+          agora_dt = datetime.now()
+          liberado_ate = st.session_state.get(chave_liberacao)
+          edicao_ativa = liberado_ate is not None and agora_dt < liberado_ate
+
+          if edicao_ativa:
+            tempo_restante = liberado_ate - agora_dt
+            horas_restantes = int(tempo_restante.total_seconds() // 3600)
+            minutos_restantes = int(
+                (tempo_restante.total_seconds() % 3600) // 60
             )
+            st.success(
+                f"🔓 Edição liberada para **{filtro_tecnico}**. Expira em"
+                f" {horas_restantes}h {minutos_restantes}m."
+            )
+            if st.button("🔒 Revogar Liberação Agora"):
+              st.session_state[chave_liberacao] = None
+              st.rerun()
+
+            habilitar_edicao = st.toggle(
+                "✏️ Habilitar Edição de Horários no Espelho", value=True
+            )
+          else:
+            st.info(
+                f"🔒 A edição para **{filtro_tecnico}** está bloqueada. O"
+                " gestor pode liberar por 24 horas."
+            )
+            if st.button("🔓 Liberar Edição por 24 Horas", type="primary"):
+              st.session_state[chave_liberacao] = agora_dt + timedelta(hours=24)
+              st.success(f"Edição liberada para {filtro_tecnico} por 24 horas!")
+              st.rerun()
+            habilitar_edicao = False
+
+          if habilitar_edicao and edicao_ativa:
             tabela_editada = st.data_editor(
                 tabela_espelho, use_container_width=True, hide_index=True
             )
@@ -453,11 +477,8 @@ elif menu == "Gestão de Lançamentos":
                   ).execute()
                 st.success("✅ Alterações salvas com sucesso!")
                 st.rerun()
-          else:
-            st.dataframe(
-                tabela_espelho, use_container_width=True, hide_index=True
-            )
         else:
+          # Perfil Técnico: Visualização limpa, sem botões de liberação ou edição
           st.dataframe(tabela_espelho, use_container_width=True, hide_index=True)
     else:
       st.info("Nenhum lançamento encontrado.")
@@ -479,7 +500,6 @@ elif menu == "📅 Calendário de Folgas":
   )
 
   try:
-    # Carrega técnicos para os selects/mapeamentos
     res_tecnicos = supabase.table("TECNICOS").select("cpf, nome").execute()
     mapa_tecnicos = {}
     mapa_cpf_por_nome = {}
@@ -489,7 +509,6 @@ elif menu == "📅 Calendário de Folgas":
         mapa_tecnicos[cpf_limpo] = t["nome"]
         mapa_cpf_por_nome[t["nome"]] = cpf_limpo
 
-    # Carrega folgas cadastradas da tabela CALENDARIO_FOLGA
     res_folgas = supabase.table("CALENDARIO_FOLGA").select("*").execute()
     dados_folgas = res_folgas.data or []
 
@@ -497,7 +516,6 @@ elif menu == "📅 Calendário de Folgas":
       cpf_folga = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(11)
       row["nome_tecnico"] = mapa_tecnicos.get(cpf_folga, "Desconhecido")
 
-    # Seção exclusiva para GESTORES adicionarem folgas
     if st.session_state.usuario_perfil == "gestor":
       st.divider()
       st.subheader("➕ Agendar Nova Folga")
@@ -550,7 +568,6 @@ elif menu == "📅 Calendário de Folgas":
 
       st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
 
-      # Se for gestor, permitir excluir folga cadastrada
       if st.session_state.usuario_perfil == "gestor":
         st.subheader("🗑️ Remover Folga")
         with st.form("form_remover_folga"):
