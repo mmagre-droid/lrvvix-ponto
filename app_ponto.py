@@ -241,7 +241,7 @@ if menu == "Registrar Ponto":
     )
     chat_id = res_tec.data[0].get("telegram_chat_id") if res_tec.data else None
 
-    # Horário Oficial de Brasília forçado sem ambiguidades
+    # Horário Oficial de Brasília
     fuso_br = ZoneInfo("America/Sao_Paulo")
     agora = datetime.now(fuso_br)
 
@@ -270,8 +270,8 @@ if menu == "Registrar Ponto":
       if not ultimo_horario_str:
         return True, ""
       try:
-        # Pega apenas a hora/minuto/segundo salva e compara com o 'agora' de Brasília
-        h, m, s = map(int, str(ultimo_horario_str).split("[:.]")[0].split(":"))
+        partes = str(ultimo_horario_str).split(":")
+        h, m, s = int(partes[0]), int(partes[1]), int(partes[2].split(".")[0])
         dt_ultimo = agora.replace(
             hour=h, minute=m, second=s, microsecond=0
         )
@@ -285,8 +285,8 @@ if menu == "Registrar Ponto":
               f"⏳ Aguarde mais {minutos_restantes} minuto(s) para bater o"
               " próximo ponto (intervalo mínimo de 1 hora).",
           )
-      except Exception:
-        pass
+      except Exception as err:
+        logger.error(f"Erro ao validar intervalo: {err}")
       return True, ""
 
 
@@ -514,16 +514,18 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
-        if st.session_state.usuario_perfil == "tecnico":
+        cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
+        if (
+            st.session_state.usuario_perfil == "tecnico"
+            and not cpf_tecnico_alvo
+        ):
           cpf_tecnico_alvo = st.session_state.usuario_cpf
-        else:
-          cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
 
         fuso_br = ZoneInfo("America/Sao_Paulo")
         agora_dt = datetime.now(fuso_br)
         liberado_ate_str = mapa_liberacao.get(cpf_tecnico_alvo)
 
-        edicao_ativa = False
+        edicao_ativa_tecnico = False
         liberado_ate_dt = None
 
         if liberado_ate_str:
@@ -537,15 +539,20 @@ elif menu == "Gestão de Lançamentos":
               liberado_ate_dt = liberado_ate_dt.astimezone(fuso_br)
 
             if agora_dt < liberado_ate_dt:
-              edicao_ativa = True
+              edicao_ativa_tecnico = True
           except Exception as ex:
             logger.error(f"Erro ao converter liberado_ate: {ex}")
 
-        if st.session_state.usuario_perfil == "gestor":
+        # O Gestor possui permissão total irrestrita de edição
+        sou_gestor = st.session_state.usuario_perfil == "gestor"
+        pode_editar = sou_gestor or edicao_ativa_tecnico
+
+        # Controles exclusivos do GESTOR para liberar/revogar técnico
+        if sou_gestor:
           st.markdown("---")
           st.subheader("⚙ Painel de Controle (Gestor)")
 
-          if edicao_ativa:
+          if edicao_ativa_tecnico:
             tempo_restante = liberado_ate_dt - agora_dt
             horas_restantes = int(tempo_restante.total_seconds() // 3600)
             minutos_restantes = int(
@@ -581,8 +588,12 @@ elif menu == "Gestão de Lançamentos":
               except Exception as err:
                 st.error(f"Erro: {err}")
 
-        if edicao_ativa:
-          if st.session_state.usuario_perfil == "tecnico":
+        # Se for o Gestor OU se for um Técnico com liberação ativa: exibe o editor
+        if pode_editar:
+          if (
+              st.session_state.usuario_perfil == "tecnico"
+              and edicao_ativa_tecnico
+          ):
             tempo_restante = liberado_ate_dt - agora_dt
             horas_restantes = int(tempo_restante.total_seconds() // 3600)
             minutos_restantes = int(
