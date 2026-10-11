@@ -514,16 +514,27 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
-        cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
-        if (
-            st.session_state.usuario_perfil == "tecnico"
-            and not cpf_tecnico_alvo
-        ):
+        # Identificação direta do CPF para garantir correspondência exata
+        if st.session_state.usuario_perfil == "tecnico":
           cpf_tecnico_alvo = st.session_state.usuario_cpf
+        else:
+          cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
 
         fuso_br = ZoneInfo("America/Sao_Paulo")
         agora_dt = datetime.now(fuso_br)
-        liberado_ate_str = mapa_liberacao.get(cpf_tecnico_alvo)
+
+        # Atualiza a verificação de liberação diretamente do banco para garantir tempo real
+        res_check = (
+            supabase.table("TECNICOS")
+            .select("liberado_ate")
+            .eq("cpf", cpf_tecnico_alvo)
+            .execute()
+        )
+        liberado_ate_str = (
+            res_check.data[0].get("liberado_ate")
+            if res_check.data
+            else mapa_liberacao.get(cpf_tecnico_alvo)
+        )
 
         edicao_ativa_tecnico = False
         liberado_ate_dt = None
@@ -543,11 +554,10 @@ elif menu == "Gestão de Lançamentos":
           except Exception as ex:
             logger.error(f"Erro ao converter liberado_ate: {ex}")
 
-        # O Gestor possui permissão total irrestrita de edição
         sou_gestor = st.session_state.usuario_perfil == "gestor"
         pode_editar = sou_gestor or edicao_ativa_tecnico
 
-        # Controles exclusivos do GESTOR para liberar/revogar técnico
+        # Controles exclusivos do Gestor
         if sou_gestor:
           st.markdown("---")
           st.subheader("⚙ Painel de Controle (Gestor)")
@@ -588,7 +598,7 @@ elif menu == "Gestão de Lançamentos":
               except Exception as err:
                 st.error(f"Erro: {err}")
 
-        # Se for o Gestor OU se for um Técnico com liberação ativa: exibe o editor
+        # Se for o Gestor OU se o Técnico estiver liberado, libera a edição
         if pode_editar:
           if (
               st.session_state.usuario_perfil == "tecnico"
