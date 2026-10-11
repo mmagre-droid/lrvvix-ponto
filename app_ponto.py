@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import logging
 import pandas as pd
 import requests
@@ -7,8 +8,82 @@ from supabase import create_client
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="centered"
+    page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="wide"
 )
+
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (FUNDO ESCURO + TUDO EM MAIÚSCULA) ---
+st.markdown(
+    """
+    <style>
+        /* Força todos os textos da aplicação em letras maiúsculas */
+        html, body, [class*="css"] {
+            text-transform: uppercase !important;
+        }
+
+        /* Fundo geral e da aplicação inteira */
+        .stApp, body, html {
+            background-color: #1E293B !important;
+            color: #F8FAFC !important;
+        }
+        
+        /* Força a cor de fundo do container central do Streamlit */
+        .block-container {
+            background-color: #1E293B !important;
+            padding-top: 2rem;
+            color: #F8FAFC !important;
+        }
+
+        /* Títulos principais em branco claro para bom contraste */
+        h1, h2, h3, h4, h5, h6, span, p, label {
+            color: #F8FAFC !important;
+        }
+
+        /* Estilização dos Botões */
+        .stButton>button {
+            border-radius: 10px;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .stButton>button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Botão Primário */
+        button[kind="primary"] {
+            background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important;
+            color: white !important;
+            border: none;
+        }
+
+        /* Campos de texto, selects e caixas de input visíveis e legíveis */
+        .stTextInput input, .stSelectbox input, div[data-baseweb="select"] span {
+            color: #0F172A !important;
+            background-color: #FFFFFF !important;
+        }
+        
+        .stTextInput>div>div>input, .stSelectbox>div>div>div, div[data-baseweb="input"] {
+            border-radius: 8px !important;
+            border: 1px solid #475569 !important;
+            background-color: #FFFFFF !important;
+        }
+
+        /* Sidebar escura */
+        section[data-testid="stSidebar"] {
+            background-color: #0F172A !important;
+            color: #FFFFFF !important;
+        }
+        section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] span {
+            color: #F1F5F9 !important;
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
 pwa_code = """
 <link rel="manifest" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/manifest.json">
 <link rel="icon" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/icone.png">
@@ -82,7 +157,9 @@ if not st.session_state.autenticado:
   with st.form("form_login"):
     cpf_input = st.text_input("CPF (Somente números)")
     senha_input = st.text_input("Senha", type="password")
-    botao_login = st.form_submit_button("Entrar", use_container_width=True)
+    botao_login = st.form_submit_button(
+        "Entrar", use_container_width=True, type="primary"
+    )
 
     if botao_login:
       if not cpf_input:
@@ -113,7 +190,7 @@ if not st.session_state.autenticado:
             )
             st.rerun()
           else:
-            st.error("❌ CPF não encontrado na tabela TECNICOS.")
+            st.error("❌ CPF não encontrado na tabela Técnicos.")
         except Exception as e:
           st.error(f"Erro ao conectar com o banco: {e}")
   st.stop()
@@ -121,9 +198,11 @@ if not st.session_state.autenticado:
 # ==========================================
 # APLICAÇÃO PRINCIPAL
 # ==========================================
-st.sidebar.title(f"⚡ Olá, {st.session_state.usuario_nome}")
+st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
-if st.sidebar.button("🚪 Sair / Logout", use_container_width=True):
+st.sidebar.divider()
+
+if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.autenticado = False
   st.session_state.usuario_nome = ""
   st.session_state.usuario_perfil = ""
@@ -146,7 +225,7 @@ menu = st.sidebar.radio("Navegação", opcoes_menu)
 # ==========================================
 if menu == "Registrar Ponto":
   st.title("⚡ LRVIX - CONTROLE DE PONTO")
-  st.write(
+  st.markdown(
       f"Registrando ponto para: **{st.session_state.usuario_nome}**"
   )
 
@@ -162,8 +241,11 @@ if menu == "Registrar Ponto":
     )
     chat_id = res_tec.data[0].get("telegram_chat_id") if res_tec.data else None
 
-    agora = datetime.now()
-    hoje = agora.date().isoformat()
+    # Horário Oficial de Brasília forçado sem ambiguidades
+    fuso_br = ZoneInfo("America/Sao_Paulo")
+    agora = datetime.now(fuso_br)
+
+    hoje = agora.strftime("%Y-%m-%d")
     horario_atual_str = agora.strftime("%H:%M:%S")
     horario_exibicao = agora.strftime("%H:%M")
     data_formatada = agora.strftime("%d/%m/%Y")
@@ -187,23 +269,31 @@ if menu == "Registrar Ponto":
     def validar_intervalo(ultimo_horario_str):
       if not ultimo_horario_str:
         return True, ""
-      ultimo_dt = datetime.strptime(
-          f"{hoje} {ultimo_horario_str}", "%Y-%m-%d %H:%M:%S"
-      )
-      diferenca = agora - ultimo_dt
-      if diferenca < timedelta(hours=1):
-        tempo_faltando = timedelta(hours=1) - diferenca
-        minutos_restantes = int(tempo_faltando.total_seconds() // 60)
-        return (
-            False,
-            f"⏳ Aguarde mais {minutos_restantes} minuto(s) para bater o"
-            " próximo ponto (intervalo mínimo de 1 hora).",
+      try:
+        # Pega apenas a hora/minuto/segundo salva e compara com o 'agora' de Brasília
+        h, m, s = map(int, str(ultimo_horario_str).split("[:.]")[0].split(":"))
+        dt_ultimo = agora.replace(
+            hour=h, minute=m, second=s, microsecond=0
         )
+        diferenca = agora - dt_ultimo
+
+        if diferenca < timedelta(hours=1):
+          tempo_faltando = timedelta(hours=1) - diferenca
+          minutos_restantes = int(tempo_faltando.total_seconds() // 60)
+          return (
+              False,
+              f"⏳ Aguarde mais {minutos_restantes} minuto(s) para bater o"
+              " próximo ponto (intervalo mínimo de 1 hora).",
+          )
+      except Exception:
+        pass
       return True, ""
 
 
     if not tem_entrada:
-      if st.button("🟢 REGISTRAR ENTRADA", use_container_width=True):
+      if st.button(
+          "🟢 REGISTRAR ENTRADA", use_container_width=True, type="primary"
+      ):
         dados_upsert = {
             "cpf": tecnico_cpf,
             "data": hoje,
@@ -231,25 +321,27 @@ if menu == "Registrar Ponto":
           "🟡 REGISTRAR SAÍDA ALMOÇO",
           use_container_width=True,
           disabled=not valido,
+          type="primary",
       ):
-        dados_upsert = {
-            "cpf": tecnico_cpf,
-            "data": hoje,
-            "saida_almoco": horario_atual_str,
-        }
-        supabase.table("CONTROLE_PONTO").upsert(
-            dados_upsert, on_conflict="cpf,data"
-        ).execute()
-        if chat_id:
-          telegram.notificar_ponto(
-              str(chat_id),
-              tecnico_nome,
-              "SAÍDA ALMOÇO",
-              horario_exibicao,
-              data_formatada,
-          )
-        st.success(f"SAÍDA ALMOÇO registrada às {horario_exibicao}!")
-        st.rerun()
+        if valido:
+          dados_upsert = {
+              "cpf": tecnico_cpf,
+              "data": hoje,
+              "saida_almoco": horario_atual_str,
+          }
+          supabase.table("CONTROLE_PONTO").upsert(
+              dados_upsert, on_conflict="cpf,data"
+          ).execute()
+          if chat_id:
+            telegram.notificar_ponto(
+                str(chat_id),
+                tecnico_nome,
+                "SAÍDA ALMOÇO",
+                horario_exibicao,
+                data_formatada,
+            )
+          st.success(f"SAÍDA ALMOÇO registrada às {horario_exibicao}!")
+          st.rerun()
 
     elif not tem_retorno_almoco:
       valido, aviso = validar_intervalo(registro_atual.get("saida_almoco"))
@@ -259,54 +351,61 @@ if menu == "Registrar Ponto":
           "🔵 REGISTRAR RETORNO ALMOÇO",
           use_container_width=True,
           disabled=not valido,
+          type="primary",
       ):
-        dados_upsert = {
-            "cpf": tecnico_cpf,
-            "data": hoje,
-            "retorno_almoco": horario_atual_str,
-        }
-        supabase.table("CONTROLE_PONTO").upsert(
-            dados_upsert, on_conflict="cpf,data"
-        ).execute()
-        if chat_id:
-          telegram.notificar_ponto(
-              str(chat_id),
-              tecnico_nome,
-              "RETORNO ALMOÇO",
-              horario_exibicao,
-              data_formatada,
-          )
-        st.success(f"RETORNO ALMOÇO registrado às {horario_exibicao}!")
-        st.rerun()
+        if valido:
+          dados_upsert = {
+              "cpf": tecnico_cpf,
+              "data": hoje,
+              "retorno_almoco": horario_atual_str,
+          }
+          supabase.table("CONTROLE_PONTO").upsert(
+              dados_upsert, on_conflict="cpf,data"
+          ).execute()
+          if chat_id:
+            telegram.notificar_ponto(
+                str(chat_id),
+                tecnico_nome,
+                "RETORNO ALMOÇO",
+                horario_exibicao,
+                data_formatada,
+            )
+          st.success(f"RETORNO ALMOÇO registrado às {horario_exibicao}!")
+          st.rerun()
 
     elif not tem_saida:
       valido, aviso = validar_intervalo(registro_atual.get("retorno_almoco"))
       if not valido:
         st.warning(aviso)
       if st.button(
-          "🔴 REGISTRAR SAÍDA", use_container_width=True, disabled=not valido
+          "🔴 REGISTRAR SAÍDA",
+          use_container_width=True,
+          disabled=not valido,
+          type="primary",
       ):
-        dados_upsert = {
-            "cpf": tecnico_cpf,
-            "data": hoje,
-            "saida": horario_atual_str,
-        }
-        supabase.table("CONTROLE_PONTO").upsert(
-            dados_upsert, on_conflict="cpf,data"
-        ).execute()
-        if chat_id:
-          telegram.notificar_ponto(
-              str(chat_id),
-              tecnico_nome,
-              "SAÍDA",
-              horario_exibicao,
-              data_formatada,
-          )
-        st.success(f"SAÍDA registrada às {horario_exibicao}!")
-        st.rerun()
+        if valido:
+          dados_upsert = {
+              "cpf": tecnico_cpf,
+              "data": hoje,
+              "saida": horario_atual_str,
+          }
+          supabase.table("CONTROLE_PONTO").upsert(
+              dados_upsert, on_conflict="cpf,data"
+          ).execute()
+          if chat_id:
+            telegram.notificar_ponto(
+                str(chat_id),
+                tecnico_nome,
+                "SAÍDA",
+                horario_exibicao,
+                data_formatada,
+            )
+          st.success(f"SAÍDA registrada às {horario_exibicao}!")
+          st.rerun()
     else:
       st.success("✅ Todos os pontos de hoje já foram registrados!")
 
+    st.markdown("---")
     st.subheader("📊 Seus Registros de Hoje")
     if registro_atual:
       df_regs = pd.DataFrame([registro_atual])
@@ -369,7 +468,7 @@ elif menu == "Gestão de Lançamentos":
 
       df = pd.DataFrame(dados_ponto)
 
-      st.divider()
+      st.markdown("---")
       st.subheader("🔍 Filtros de Visualização")
 
       col_f1, col_f2, col_f3 = st.columns(3)
@@ -379,7 +478,7 @@ elif menu == "Gestão de Lançamentos":
           st.text_input("Técnico", value=filtro_tecnico, disabled=True)
         else:
           lista_tecnicos = sorted(list(df["nome_tecnico"].unique()))
-          filtro_tecnico = st.selectbox("Selecione o Técnico", lista_tecnicos)
+          filtro_tecnico = st.selectbox("Técnico", lista_tecnicos)
 
       with col_f2:
         filtro_data_inicial = st.date_input("Data Inicial", value=None)
@@ -398,7 +497,7 @@ elif menu == "Gestão de Lançamentos":
         df = df.drop(columns=["data_dt"])
 
       if df.empty:
-        st.warning("⚠ Nenhum registro encontrado para os filtros.")
+        st.warning("⚠ Nenhum registro encontrado para os filtros selecionados.")
       else:
         tabela_espelho = df[
             ["data", "entrada", "saida_almoco", "retorno_almoco", "saida"]
@@ -415,14 +514,13 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
-        # Identifica o CPF do técnico alvo e verifica no banco (Supabase) se está liberado
-        cpf_tecnico_alvo = (
-            st.session_state.usuario_cpf
-            if st.session_state.usuario_perfil == "tecnico"
-            else mapa_cpf_por_nome.get(filtro_tecnico)
-        )
+        if st.session_state.usuario_perfil == "tecnico":
+          cpf_tecnico_alvo = st.session_state.usuario_cpf
+        else:
+          cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
 
-        agora_dt = datetime.now()
+        fuso_br = ZoneInfo("America/Sao_Paulo")
+        agora_dt = datetime.now(fuso_br)
         liberado_ate_str = mapa_liberacao.get(cpf_tecnico_alvo)
 
         edicao_ativa = False
@@ -430,16 +528,22 @@ elif menu == "Gestão de Lançamentos":
 
         if liberado_ate_str:
           try:
-            liberado_ate_dt = datetime.fromisoformat(liberado_ate_str)
+            liberado_ate_dt = datetime.fromisoformat(
+                str(liberado_ate_str).replace("Z", "+00:00")
+            )
+            if liberado_ate_dt.tzinfo is None:
+              liberado_ate_dt = liberado_ate_dt.replace(tzinfo=fuso_br)
+            else:
+              liberado_ate_dt = liberado_ate_dt.astimezone(fuso_br)
+
             if agora_dt < liberado_ate_dt:
               edicao_ativa = True
-          except Exception:
-            pass
+          except Exception as ex:
+            logger.error(f"Erro ao converter liberado_ate: {ex}")
 
-        # Controles exclusivos para o GESTOR gerenciar a liberação no Banco
         if st.session_state.usuario_perfil == "gestor":
-          st.divider()
-          st.subheader("⚙ Controle de Edição (Gestor)")
+          st.markdown("---")
+          st.subheader("⚙ Painel de Controle (Gestor)")
 
           if edicao_ativa:
             tempo_restante = liberado_ate_dt - agora_dt
@@ -451,32 +555,32 @@ elif menu == "Gestão de Lançamentos":
                 f"🔓 Edição liberada para **{filtro_tecnico}**. Expira em"
                 f" {horas_restantes}h {minutos_restantes}m."
             )
-            if st.button("🔒 Revogar Liberação Agora"):
+            if st.button("🔒 Revogar Liberação", use_container_width=True):
               try:
                 supabase.table("TECNICOS").update(
                     {"liberado_ate": None}
                 ).eq("cpf", cpf_tecnico_alvo).execute()
-                st.success("Liberação revogada com sucesso!")
+                st.success("Liberação revogada!")
                 st.rerun()
               except Exception as err:
-                st.error(f"Erro ao revogar: {err}")
+                st.error(f"Erro: {err}")
           else:
-            st.info(
-                f"🔒 A edição para **{filtro_tecnico}** está bloqueada. O"
-                " gestor pode liberar por 24 horas."
-            )
-            if st.button("🔓 Liberar Edição por 24 Horas", type="primary"):
+            st.info(f"🔒 Edição bloqueada para **{filtro_tecnico}**.")
+            if st.button(
+                "🔓 Liberar Edição (24h)",
+                type="primary",
+                use_container_width=True,
+            ):
               novo_limite = (agora_dt + timedelta(hours=24)).isoformat()
               try:
                 supabase.table("TECNICOS").update(
                     {"liberado_ate": novo_limite}
                 ).eq("cpf", cpf_tecnico_alvo).execute()
-                st.success(f"Edição liberada para {filtro_tecnico} por 24 horas!")
+                st.success("Edição liberada por 24 horas!")
                 st.rerun()
               except Exception as err:
-                st.error(f"Erro ao liberar: {err}")
+                st.error(f"Erro: {err}")
 
-        # Exibição para o Técnico ou Gestor quando a edição está ativa
         if edicao_ativa:
           if st.session_state.usuario_perfil == "tecnico":
             tempo_restante = liberado_ate_dt - agora_dt
@@ -485,16 +589,18 @@ elif menu == "Gestão de Lançamentos":
                 (tempo_restante.total_seconds() % 3600) // 60
             )
             st.success(
-                f"🔓 Seu gestor liberou a edição dos seus lançamentos."
-                f" Expira em {horas_restantes}h {minutos_restantes}m."
+                f"🔓 Seu gestor liberou a edição dos seus lançamentos. Expira"
+                f" em {horas_restantes}h {minutos_restantes}m."
             )
 
           tabela_editada = st.data_editor(
               tabela_espelho, use_container_width=True, hide_index=True
           )
 
-          if st.button("💾 Salvar Alterações", type="primary"):
-            with st.spinner("Salvando..."):
+          if st.button(
+              "💾 Salvar Alterações", type="primary", use_container_width=True
+          ):
+            with st.spinner("Salvando alterações..."):
               for _, row in tabela_editada.iterrows():
                 data_iso = (
                     datetime.strptime(row["DATA"], "%d/%m/%Y")
@@ -512,13 +618,13 @@ elif menu == "Gestão de Lançamentos":
                     },
                     on_conflict="cpf,data",
                 ).execute()
-              st.success("✅ Alterações salvas com sucesso!")
+              st.success("✅ Salvo com sucesso!")
               st.rerun()
         else:
           if st.session_state.usuario_perfil == "tecnico":
             st.info(
-                "🔒 Seus lançamentos estão bloqueados para edição. Solicite"
-                " liberação ao gestor se precisar alterar algo."
+                "🔒 Seus lançamentos estão bloqueados. Solicite liberação ao"
+                " gestor para editar."
             )
           st.dataframe(tabela_espelho, use_container_width=True, hide_index=True)
     else:
@@ -531,14 +637,7 @@ elif menu == "Gestão de Lançamentos":
 # ==========================================
 elif menu == "📅 Calendário de Folgas":
   st.title("📅 Calendário de Folgas dos Técnicos")
-  st.write(
-      "Consulte abaixo as folgas agendadas para os técnicos da equipe."
-      + (
-          " Como gestor, você pode adicionar ou remover folgas."
-          if st.session_state.usuario_perfil == "gestor"
-          else ""
-      )
-  )
+  st.markdown("Consulte abaixo as folgas agendadas para os técnicos da equipe.")
 
   try:
     res_tecnicos = supabase.table("TECNICOS").select("cpf, nome").execute()
@@ -558,8 +657,8 @@ elif menu == "📅 Calendário de Folgas":
       row["nome_tecnico"] = mapa_tecnicos.get(cpf_folga, "Desconhecido")
 
     if st.session_state.usuario_perfil == "gestor":
-      st.divider()
-      st.subheader("➕ Agendar Nova Folga")
+      st.markdown("---")
+      st.subheader("➕ Agendar Folga")
       with st.form("form_cadastrar_folga"):
         col_g1, col_g2, col_g3 = st.columns(3)
         with col_g1:
@@ -569,10 +668,10 @@ elif menu == "📅 Calendário de Folgas":
         with col_g2:
           data_folga = st.date_input("Data da Folga")
         with col_g3:
-          motivo_folga = st.text_input("Motivo / Descrição", value="Folga")
+          motivo_folga = st.text_input("Motivo", value="Folga")
 
         btn_salvar_folga = st.form_submit_button(
-            "💾 Salvar Folga", use_container_width=True
+            "💾 Salvar Folga", use_container_width=True, type="primary"
         )
 
         if btn_salvar_folga:
@@ -587,15 +686,12 @@ elif menu == "📅 Calendário de Folgas":
                 },
                 on_conflict="cpf,data",
             ).execute()
-            st.success(
-                f"✅ Folga agendada com sucesso para {tec_selecionado} em"
-                f" {data_folga.strftime('%d/%m/%Y')}!"
-            )
+            st.success("✅ Folga agendada com sucesso!")
             st.rerun()
           except Exception as err:
-            st.error(f"Erro ao salvar folga: {err}")
+            st.error(f"Erro: {err}")
 
-    st.divider()
+    st.markdown("---")
     st.subheader("📋 Lista de Folgas Cadastradas")
 
     if dados_folgas:
@@ -617,10 +713,10 @@ elif menu == "📅 Calendário de Folgas":
             opcoes_exclusao.append(f"{r['TÉCNICO']} - {r['DATA']} ({r['MOTIVO']})")
 
           folga_selecionada = st.selectbox(
-              "Selecione a folga para remover", options=opcoes_exclusao
+              "Selecione para remover", options=opcoes_exclusao
           )
           btn_remover = st.form_submit_button(
-              "❌ Excluir Folga Selecionada", use_container_width=True
+              "❌ Excluir Folga", use_container_width=True
           )
 
           if btn_remover and folga_selecionada:
@@ -636,7 +732,7 @@ elif menu == "📅 Calendário de Folgas":
               supabase.table("CALENDARIO_FOLGA").delete().eq(
                   "cpf", cpf_alvo
               ).eq("data", data_iso).execute()
-              st.success("✅ Folga removida com sucesso!")
+              st.success("✅ Folga removida!")
               st.rerun()
             except Exception as err:
               st.error(f"Erro ao remover folga: {err}")
@@ -644,4 +740,4 @@ elif menu == "📅 Calendário de Folgas":
       st.info("Nenhuma folga cadastrada no sistema.")
 
   except Exception as e:
-    st.error(f"Erro ao carregar o calendário de folgas: {e}")
+    st.error(f"Erro ao carregar folgas: {e}")
