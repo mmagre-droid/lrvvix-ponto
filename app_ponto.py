@@ -6,7 +6,7 @@ import requests
 import streamlit as st
 from supabase import create_client
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
+# --- CONFIGURAÇÃO DA PÁGINA (SIDEBAR INICIA RECOLHIDA) ---
 st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO",
     page_icon="⚡",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (OTIMIZADO PARA MOBILE & DESKTOP) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
 st.markdown(
     """
     <style>
@@ -28,8 +28,13 @@ st.markdown(
             background-color: #1E293B !important;
             color: #F8FAFC !important;
         }
+
+        /* Força a barra superior (Header) a ter fundo escuro */
+        header[data-testid="stHeader"] {
+            background-color: #1E293B !important;
+        }
         
-        /* Ajuste de espaçamento superior do container central */
+        /* Ajuste de espaçamento do container central */
         .block-container {
             background-color: #1E293B !important;
             padding-top: 2rem !important;
@@ -86,14 +91,22 @@ st.markdown(
             color: #F1F5F9 !important;
         }
 
-        /* Melhoria para o botão da barra lateral em telas mobile/celular */
+        /* DESTACAR A SETA DE ABRIR/FECHAR A BARRA LATERAL NO CELULAR E DESKTOP */
         [data-testid="collapsedControl"] {
             display: block !important;
-            color: #F8FAFC !important;
-            background-color: #0F172A !important;
-            border-radius: 5px;
-            padding: 4px;
-            margin: 5px;
+            background-color: #EF4444 !important; /* Cor vermelha de destaque */
+            border-radius: 8px !important;
+            padding: 6px 10px !important;
+            margin: 10px !important;
+            box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        /* Força a cor do ícone da seta em branco dentro do fundo vermelho */
+        [data-testid="collapsedControl"] svg {
+            fill: #FFFFFF !important;
+            color: #FFFFFF !important;
+            width: 22px !important;
+            height: 22px !important;
         }
     </style>
 """,
@@ -225,7 +238,7 @@ else:
       "📅 Calendário de Folgas",
   ]
 
-# Sidebar (Oculta por padrão no celular e desktop, abre com a seta)
+# Sidebar
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
@@ -778,4 +791,4 @@ elif menu == "📅 Calendário de Folgas":
       st.info("Nenhuma folga cadastrada no sistema.")
 
   except Exception as e:
-    st.error(f"Erro ao carregar folgas: {e}")      
+    st.error(f"Erro ao carregar folgas: {e}")
