@@ -6,12 +6,15 @@ import requests
 import streamlit as st
 from supabase import create_client
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
+# --- CONFIGURAÇÃO DA PÁGINA (SIDEBAR INICIA RECOLHIDA/OCULTA) ---
 st.set_page_config(
-    page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="wide"
+    page_title="LRVIX - CONTROLE DE PONTO",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (LAYOUT CENTRALIZADO + SEM CORTES) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
 st.markdown(
     """
     <style>
@@ -29,7 +32,7 @@ st.markdown(
         /* Ajuste de espaçamento superior do container central */
         .block-container {
             background-color: #1E293B !important;
-            padding-top: 3rem !important;
+            padding-top: 2rem !important;
             padding-bottom: 2rem !important;
             max-width: 1100px !important;
             margin: 0 auto !important;
@@ -74,7 +77,7 @@ st.markdown(
             background-color: #FFFFFF !important;
         }
 
-        /* Estilização da navegação por Radio Horizontal/Centralizado */
+        /* Estilização da navegação por Radio Horizontal */
         div[data-testid="stRadio"] > div {
             display: flex;
             justify-content: center;
@@ -207,7 +210,7 @@ if not st.session_state.autenticado:
   st.stop()
 
 # ==========================================
-# APLICAÇÃO PRINCIPAL & NAVEGAÇÃO CENTRALIZADA
+# APLICAÇÃO PRINCIPAL & NAVEGAÇÃO
 # ==========================================
 
 # Define as opções de abas
@@ -220,7 +223,7 @@ else:
       "📅 Calendário de Folgas",
   ]
 
-# Sidebar
+# Sidebar (Inicia oculta e abre ao clicar na seta)
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
@@ -232,10 +235,7 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.usuario_cpf = ""
   st.rerun()
 
-# Menu Centralizado no topo sem cortes
-if "menu_selecionado" not in st.session_state:
-  st.session_state.menu_selecionado = opcoes_menu[0]
-
+# Menu principal horizontal centralizado (Limpo e sem poluição)
 menu = st.radio(
     "Navegação",
     options=opcoes_menu,
