@@ -209,8 +209,12 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.usuario_cpf = ""
   st.rerun()
 
+# Menus padronizados para ambos os perfis (Técnico e Gestor veem as mesmas abas)
 if st.session_state.usuario_perfil == "gestor":
-  opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
+  opcoes_menu = [
+      "Gestão de Lançamentos",
+      "📅 Calendário de Folgas",
+  ]
 else:
   opcoes_menu = [
       "Registrar Ponto",
@@ -241,7 +245,6 @@ if menu == "Registrar Ponto":
     )
     chat_id = res_tec.data[0].get("telegram_chat_id") if res_tec.data else None
 
-    # Horário Oficial de Brasília
     fuso_br = ZoneInfo("America/Sao_Paulo")
     agora = datetime.now(fuso_br)
 
@@ -514,16 +517,16 @@ elif menu == "Gestão de Lançamentos":
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
 
-        # Identificação direta do CPF para garantir correspondência exata
-        if st.session_state.usuario_perfil == "tecnico":
+        cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
+        if (
+            st.session_state.usuario_perfil == "tecnico"
+            and not cpf_tecnico_alvo
+        ):
           cpf_tecnico_alvo = st.session_state.usuario_cpf
-        else:
-          cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
 
         fuso_br = ZoneInfo("America/Sao_Paulo")
         agora_dt = datetime.now(fuso_br)
 
-        # Atualiza a verificação de liberação diretamente do banco para garantir tempo real
         res_check = (
             supabase.table("TECNICOS")
             .select("liberado_ate")
@@ -557,7 +560,7 @@ elif menu == "Gestão de Lançamentos":
         sou_gestor = st.session_state.usuario_perfil == "gestor"
         pode_editar = sou_gestor or edicao_ativa_tecnico
 
-        # Controles exclusivos do Gestor
+        # Painel do Gestor para controle de liberação
         if sou_gestor:
           st.markdown("---")
           st.subheader("⚙ Painel de Controle (Gestor)")
@@ -598,7 +601,7 @@ elif menu == "Gestão de Lançamentos":
               except Exception as err:
                 st.error(f"Erro: {err}")
 
-        # Se for o Gestor OU se o Técnico estiver liberado, libera a edição
+        # Se tiver permissão de edição (Gestor ou Técnico com liberação ativa)
         if pode_editar:
           if (
               st.session_state.usuario_perfil == "tecnico"
@@ -644,8 +647,8 @@ elif menu == "Gestão de Lançamentos":
         else:
           if st.session_state.usuario_perfil == "tecnico":
             st.info(
-                "🔒 Seus lançamentos estão bloqueados. Solicite liberação ao"
-                " gestor para editar."
+                "🔒 Seus lançamentos estão bloqueados para edição. Exibindo"
+                " apenas consulta do histórico."
             )
           st.dataframe(tabela_espelho, use_container_width=True, hide_index=True)
     else:
@@ -654,7 +657,7 @@ elif menu == "Gestão de Lançamentos":
     st.error(f"Erro ao carregar dados: {e}")
 
 # ==========================================
-# ABA 3: CALENDÁRIO DE FOLGAS
+# ABA 3: CALENDÁRIO DE FOLGAS (Técnico Visualiza / Gestor Gerencia)
 # ==========================================
 elif menu == "📅 Calendário de Folgas":
   st.title("📅 Calendário de Folgas dos Técnicos")
@@ -677,6 +680,7 @@ elif menu == "📅 Calendário de Folgas":
       cpf_folga = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(11)
       row["nome_tecnico"] = mapa_tecnicos.get(cpf_folga, "Desconhecido")
 
+    # Apenas o Gestor pode agendar folgas
     if st.session_state.usuario_perfil == "gestor":
       st.markdown("---")
       st.subheader("➕ Agendar Folga")
@@ -724,8 +728,10 @@ elif menu == "📅 Calendário de Folgas":
       )
       df_exibicao = df_exibicao.sort_values(by="DATA", ascending=True)
 
+      # Ambos visualizam a tabela de folgas
       st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
 
+      # Apenas o Gestor pode remover folgas
       if st.session_state.usuario_perfil == "gestor":
         st.subheader("🗑️ Remover Folga")
         with st.form("form_remover_folga"):
