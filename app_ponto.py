@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="wide"
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (FUNDO ESCURO + TUDO EM MAIÚSCULA) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (RESPONSIVO + MAIÚSCULA + FUNDO ESCURO) ---
 st.markdown(
     """
     <style>
@@ -29,7 +29,7 @@ st.markdown(
         /* Força a cor de fundo do container central do Streamlit */
         .block-container {
             background-color: #1E293B !important;
-            padding-top: 2rem;
+            padding-top: 1rem;
             color: #F8FAFC !important;
         }
 
@@ -71,7 +71,7 @@ st.markdown(
             background-color: #FFFFFF !important;
         }
 
-        /* Sidebar escura */
+        /* Sidebar escura e visível */
         section[data-testid="stSidebar"] {
             background-color: #0F172A !important;
             color: #FFFFFF !important;
@@ -196,11 +196,29 @@ if not st.session_state.autenticado:
   st.stop()
 
 # ==========================================
-# APLICAÇÃO PRINCIPAL
+# NAVEGAÇÃO RESPONSIVA PARA CELULAR E DESKTOP
 # ==========================================
+
+# Define as opções de abas com base no perfil
+if st.session_state.usuario_perfil == "gestor":
+  opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
+else:
+  opcoes_menu = [
+      "Registrar Ponto",
+      "Gestão de Lançamentos",
+      "📅 Calendário de Folgas",
+  ]
+
+# Sidebar (Barra Lateral)
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
+
+menu_sidebar = st.sidebar.selectbox(
+    "📍 Selecione a Aba",
+    opcoes_menu,
+    key="menu_navegacao_sidebar",
+)
 
 if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.autenticado = False
@@ -209,20 +227,15 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.usuario_cpf = ""
   st.rerun()
 
-# Menus padronizados para ambos os perfis (Técnico e Gestor veem as mesmas abas)
-if st.session_state.usuario_perfil == "gestor":
-  opcoes_menu = [
-      "Gestão de Lançamentos",
-      "📅 Calendário de Folgas",
-  ]
-else:
-  opcoes_menu = [
-      "Registrar Ponto",
-      "Gestão de Lançamentos",
-      "📅 Calendário de Folgas",
-  ]
+# Menu Superior na Página Principal (ideal para celulares)
+menu_topo = st.selectbox(
+    "📱 MENU DE NAVEGAÇÃO",
+    opcoes_menu,
+    index=opcoes_menu.index(menu_sidebar),
+    key="menu_navegacao_topo",
+)
 
-menu = st.sidebar.radio("Navegação", opcoes_menu)
+menu = menu_topo
 
 # ==========================================
 # ABA 1: REGISTRAR PONTO (Apenas Técnicos)
@@ -560,7 +573,6 @@ elif menu == "Gestão de Lançamentos":
         sou_gestor = st.session_state.usuario_perfil == "gestor"
         pode_editar = sou_gestor or edicao_ativa_tecnico
 
-        # Painel do Gestor para controle de liberação
         if sou_gestor:
           st.markdown("---")
           st.subheader("⚙ Painel de Controle (Gestor)")
@@ -601,7 +613,6 @@ elif menu == "Gestão de Lançamentos":
               except Exception as err:
                 st.error(f"Erro: {err}")
 
-        # Se tiver permissão de edição (Gestor ou Técnico com liberação ativa)
         if pode_editar:
           if (
               st.session_state.usuario_perfil == "tecnico"
@@ -657,7 +668,7 @@ elif menu == "Gestão de Lançamentos":
     st.error(f"Erro ao carregar dados: {e}")
 
 # ==========================================
-# ABA 3: CALENDÁRIO DE FOLGAS (Técnico Visualiza / Gestor Gerencia)
+# ABA 3: CALENDÁRIO DE FOLGAS
 # ==========================================
 elif menu == "📅 Calendário de Folgas":
   st.title("📅 Calendário de Folgas dos Técnicos")
@@ -680,7 +691,6 @@ elif menu == "📅 Calendário de Folgas":
       cpf_folga = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(11)
       row["nome_tecnico"] = mapa_tecnicos.get(cpf_folga, "Desconhecido")
 
-    # Apenas o Gestor pode agendar folgas
     if st.session_state.usuario_perfil == "gestor":
       st.markdown("---")
       st.subheader("➕ Agendar Folga")
@@ -728,10 +738,8 @@ elif menu == "📅 Calendário de Folgas":
       )
       df_exibicao = df_exibicao.sort_values(by="DATA", ascending=True)
 
-      # Ambos visualizam a tabela de folgas
       st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
 
-      # Apenas o Gestor pode remover folgas
       if st.session_state.usuario_perfil == "gestor":
         st.subheader("🗑️ Remover Folga")
         with st.form("form_remover_folga"):
