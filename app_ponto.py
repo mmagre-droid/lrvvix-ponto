@@ -77,14 +77,6 @@ st.markdown(
             background-color: #FFFFFF !important;
         }
 
-        /* Estilização da navegação por Radio Horizontal */
-        div[data-testid="stRadio"] > div {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
         /* Sidebar escura e padronizada */
         section[data-testid="stSidebar"] {
             background-color: #0F172A !important;
@@ -210,7 +202,7 @@ if not st.session_state.autenticado:
   st.stop()
 
 # ==========================================
-# APLICAÇÃO PRINCIPAL & NAVEGAÇÃO
+# APLICAÇÃO PRINCIPAL & MENU NA BARRA LATERAL OCULTA
 # ==========================================
 
 # Define as opções de abas
@@ -223,28 +215,20 @@ else:
       "📅 Calendário de Folgas",
   ]
 
-# Sidebar (Inicia oculta e abre ao clicar na seta)
+# Sidebar (Tudo fica guardado aqui dentro, recolhido na seta lateral)
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
 
+menu = st.sidebar.radio("Navegação", opcoes_menu)
+
+st.sidebar.divider()
 if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.autenticado = False
   st.session_state.usuario_nome = ""
   st.session_state.usuario_perfil = ""
   st.session_state.usuario_cpf = ""
   st.rerun()
-
-# Menu principal horizontal centralizado (Limpo e sem poluição)
-menu = st.radio(
-    "Navegação",
-    options=opcoes_menu,
-    horizontal=True,
-    label_visibility="collapsed",
-    key="menu_navegacao_principal",
-)
-
-st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
 # ABA 1: REGISTRAR PONTO (Apenas Técnicos)
