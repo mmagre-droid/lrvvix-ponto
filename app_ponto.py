@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO", page_icon="⚡", layout="wide"
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (RESPONSIVO + MAIÚSCULA + FUNDO ESCURO) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (LAYOUT CENTRALIZADO + SEM CORTES) ---
 st.markdown(
     """
     <style>
@@ -26,19 +26,22 @@ st.markdown(
             color: #F8FAFC !important;
         }
         
-        /* Força a cor de fundo do container central do Streamlit */
+        /* Ajuste de espaçamento superior do container central */
         .block-container {
             background-color: #1E293B !important;
-            padding-top: 1rem;
+            padding-top: 3rem !important;
+            padding-bottom: 2rem !important;
+            max-width: 1100px !important;
+            margin: 0 auto !important;
             color: #F8FAFC !important;
         }
 
-        /* Títulos principais em branco claro para bom contraste */
+        /* Títulos e textos com bom contraste */
         h1, h2, h3, h4, h5, h6, span, p, label {
             color: #F8FAFC !important;
         }
 
-        /* Estilização dos Botões */
+        /* Botões padronizados e centralizados */
         .stButton>button {
             border-radius: 10px;
             font-weight: 600;
@@ -59,7 +62,7 @@ st.markdown(
             border: none;
         }
 
-        /* Campos de texto, selects e caixas de input visíveis e legíveis */
+        /* Campos de texto e caixas de seleção legíveis */
         .stTextInput input, .stSelectbox input, div[data-baseweb="select"] span {
             color: #0F172A !important;
             background-color: #FFFFFF !important;
@@ -71,7 +74,15 @@ st.markdown(
             background-color: #FFFFFF !important;
         }
 
-        /* Sidebar escura e visível */
+        /* Estilização da navegação por Radio Horizontal/Centralizado */
+        div[data-testid="stRadio"] > div {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        /* Sidebar escura e padronizada */
         section[data-testid="stSidebar"] {
             background-color: #0F172A !important;
             color: #FFFFFF !important;
@@ -196,10 +207,10 @@ if not st.session_state.autenticado:
   st.stop()
 
 # ==========================================
-# NAVEGAÇÃO RESPONSIVA PARA CELULAR E DESKTOP
+# APLICAÇÃO PRINCIPAL & NAVEGAÇÃO CENTRALIZADA
 # ==========================================
 
-# Define as opções de abas com base no perfil
+# Define as opções de abas
 if st.session_state.usuario_perfil == "gestor":
   opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
 else:
@@ -209,16 +220,10 @@ else:
       "📅 Calendário de Folgas",
   ]
 
-# Sidebar (Barra Lateral)
+# Sidebar
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
-
-menu_sidebar = st.sidebar.selectbox(
-    "📍 Selecione a Aba",
-    opcoes_menu,
-    key="menu_navegacao_sidebar",
-)
 
 if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.autenticado = False
@@ -227,15 +232,19 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.session_state.usuario_cpf = ""
   st.rerun()
 
-# Menu Superior na Página Principal (ideal para celulares)
-menu_topo = st.selectbox(
-    "📱 MENU DE NAVEGAÇÃO",
-    opcoes_menu,
-    index=opcoes_menu.index(menu_sidebar),
-    key="menu_navegacao_topo",
+# Menu Centralizado no topo sem cortes
+if "menu_selecionado" not in st.session_state:
+  st.session_state.menu_selecionado = opcoes_menu[0]
+
+menu = st.radio(
+    "Navegação",
+    options=opcoes_menu,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="menu_navegacao_principal",
 )
 
-menu = menu_topo
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
 # ABA 1: REGISTRAR PONTO (Apenas Técnicos)
