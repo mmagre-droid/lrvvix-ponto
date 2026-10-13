@@ -6,7 +6,7 @@ import requests
 import streamlit as st
 from supabase import create_client
 
-# --- CONFIGURAÇÃO DA PÁGINA (SIDEBAR INICIA RECOLHIDA/OCULTA) ---
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO",
     page_icon="⚡",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (OTIMIZADO PARA MOBILE & DESKTOP) ---
 st.markdown(
     """
     <style>
@@ -44,7 +44,7 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
-        /* Botões padronizados e centralizados */
+        /* Botões padronizados */
         .stButton>button {
             border-radius: 10px;
             font-weight: 600;
@@ -84,6 +84,16 @@ st.markdown(
         }
         section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] span {
             color: #F1F5F9 !important;
+        }
+
+        /* Melhoria para o botão da barra lateral em telas mobile/celular */
+        [data-testid="collapsedControl"] {
+            display: block !important;
+            color: #F8FAFC !important;
+            background-color: #0F172A !important;
+            border-radius: 5px;
+            padding: 4px;
+            margin: 5px;
         }
     </style>
 """,
@@ -215,7 +225,7 @@ else:
       "📅 Calendário de Folgas",
   ]
 
-# Sidebar (Tudo fica guardado aqui dentro, recolhido na seta lateral)
+# Sidebar (Oculta por padrão no celular e desktop, abre com a seta)
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
@@ -768,4 +778,4 @@ elif menu == "📅 Calendário de Folgas":
       st.info("Nenhuma folga cadastrada no sistema.")
 
   except Exception as e:
-    st.error(f"Erro ao carregar folgas: {e}")
+    st.error(f"Erro ao carregar folgas: {e}")      
