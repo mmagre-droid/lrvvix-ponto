@@ -70,7 +70,7 @@ st.markdown(
             border: none;
         }
 
-        /* CAMPOS DE TEXTO E CAIXAS DE SELEÇÃO */
+        /* CAMPOS DE TEXTO E SELEÇÃO CONVENCIONAIS */
         .stTextInput input, .stSelectbox input, div[data-baseweb="select"] span {
             color: #0F172A !important;
             background-color: #FFFFFF !important;
@@ -79,17 +79,23 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* CAMPOS DE DATA (INPUTS DE DIGITAÇÃO) COM TEXTO ESCURO E LEGÍVEL */
-        .stDateInput input {
-            color: #0F172A !important;
-            background-color: #FFFFFF !important;
+        /* FORÇA FUNDO ESCURO E TEXTO BRANCO EM TODOS OS CAMPOS DE DATA */
+        .stDateInput input, div[data-testid="stDateInput"] input {
+            color: #FFFFFF !important;
+            background-color: #334155 !important;
             font-weight: 700 !important;
-            -webkit-text-fill-color: #0F172A !important;
-            opacity: 1 !important;
+            -webkit-text-fill-color: #FFFFFF !important;
+            border-radius: 8px !important;
         }
 
-        /* Força texto escuro e legível mesmo quando o campo está desativado (disabled) */
-        .stTextInput input:disabled, .stSelectbox input:disabled, .stDateInput input:disabled {
+        .stDateInput > div > div, div[data-testid="stDateInput"] > div > div {
+            background-color: #334155 !important;
+            border: 1px solid #64748B !important;
+            border-radius: 8px !important;
+        }
+
+        /* Força texto escuro e legível em campos desativados (disabled) */
+        .stTextInput input:disabled, .stSelectbox input:disabled {
             color: #0F172A !important;
             background-color: #F1F5F9 !important;
             font-weight: 700 !important;
@@ -99,53 +105,74 @@ st.markdown(
         
         /* Cor dos placeholders */
         ::placeholder, ::-webkit-input-placeholder {
-            color: #475569 !important;
+            color: #94A3B8 !important;
             opacity: 1 !important;
-            -webkit-text-fill-color: #475569 !important;
-        }
-        
-        .stTextInput>div>div>input, .stSelectbox>div>div>div, .stDateInput>div>div>input, div[data-baseweb="input"] {
-            border-radius: 8px !important;
-            border: 1px solid #475569 !important;
-            background-color: #FFFFFF !important;
+            -webkit-text-fill-color: #94A3B8 !important;
         }
 
         /* ==========================================
-           CORREÇÃO DO CALENDÁRIO FLUTUANTE (POPUP)
+           CORREÇÃO DEFINITIVA DO POPUP DO CALENDÁRIO
            ========================================== */
-        div[data-baseweb="calendar"] {
+        /* Container principal do Popover do Calendário */
+        div[data-baseweb="popover"], div[aria-label="Calendar"], [role="dialog"], div[data-baseweb="calendar"] {
             background-color: #0F172A !important;
-            color: #F8FAFC !important;
             border: 1px solid #475569 !important;
             border-radius: 12px !important;
-        }
-
-        div[data-baseweb="calendar"] * {
-            color: #F8FAFC !important;
-        }
-
-        /* Cabeçalho do calendário (Mês e Ano) */
-        div[data-baseweb="calendar"] header, div[data-baseweb="calendar"] select {
-            background-color: #1E293B !important;
-            color: #F8FAFC !important;
-        }
-
-        /* Dias da semana (D, S, T, Q, Q, S, S) */
-        div[data-baseweb="calendar"] [role="gridcell"], div[data-baseweb="calendar"] [aria-colindex] {
-            color: #F8FAFC !important;
-        }
-
-        /* Dias selecionados ou em foco no calendário */
-        div[data-baseweb="calendar"] [aria-selected="true"] {
-            background-color: #EF4444 !important;
             color: #FFFFFF !important;
+        }
+
+        /* Cabeçalho do mês/ano e setas de navegação */
+        div[data-baseweb="calendar"] header, 
+        div[data-baseweb="calendar"] header * {
+            background-color: #0F172A !important;
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
             font-weight: bold !important;
         }
 
-        /* Hover nos dias do calendário */
-        div[data-baseweb="calendar"] button:hover {
-            background-color: #334155 !important;
-            color: #FFFFFF !important;
+        /* Dias da semana (SU, MO, TU, WE, TH, FR, SA) */
+        div[data-baseweb="calendar"] [role="gridcell"] span,
+        div[data-baseweb="calendar"] header + div div {
+            color: #38BDF8 !important;
+            font-weight: bold !important;
+        }
+
+        /* Quadros e Números dos Dias do Mês (Fundo Branco Padrão) */
+        div[data-baseweb="calendar"] [role="gridcell"] {
+            background-color: #F8FAFC !important;
+            color: #0F172A !important;
+            font-weight: 800 !important;
+            border-radius: 6px !important;
+            border: 1px solid #CBD5E1 !important;
+        }
+
+        /* REMOVE A BOLA ESCURA/VERMELHA E QUALQUER DESTAQUE CIRCULAR DE DIA SELECIONADO/FOCO */
+        div[data-baseweb="calendar"] [role="gridcell"],
+        div[data-baseweb="calendar"] [role="gridcell"] *,
+        div[data-baseweb="calendar"] [aria-selected="true"],
+        div[data-baseweb="calendar"] [aria-selected="true"] *,
+        div[data-baseweb="calendar"] [role="gridcell"] button,
+        div[data-baseweb="calendar"] [role="gridcell"] div {
+            background-color: #F8FAFC !important;
+            color: #0F172A !important;
+            font-weight: 800 !important;
+            border-radius: 6px !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+
+        /* Remove os círculos gerados por pseudo-elementos CSS ::before e ::after */
+        div[data-baseweb="calendar"] [role="gridcell"] *::before,
+        div[data-baseweb="calendar"] [role="gridcell"] *::after {
+            display: none !important;
+            background: transparent !important;
+            border: none !important;
+        }
+
+        /* Hover suave e discreto nos dias ao passar o mouse */
+        div[data-baseweb="calendar"] [role="gridcell"]:hover {
+            background-color: #E2E8F0 !important;
         }
 
         /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
