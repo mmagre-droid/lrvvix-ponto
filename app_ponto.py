@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (COMPATÍVEL COM TELEMÓVEL E COMPUTADOR) ---
 st.markdown(
     """
     <style>
@@ -37,7 +37,7 @@ st.markdown(
         /* Ajuste de espaçamento do container central */
         .block-container {
             background-color: #1E293B !important;
-            padding-top: 2rem !important;
+            padding-top: 1.5rem !important;
             padding-bottom: 2rem !important;
             max-width: 1100px !important;
             margin: 0 auto !important;
@@ -111,28 +111,35 @@ st.markdown(
         }
 
         /* ==========================================
-           CORREÇÃO DEFINITIVA DO POPUP DO CALENDÁRIO
+           CORREÇÃO DO CALENDÁRIO PARA COMPUTADOR E TELEMÓVEL
            ========================================== */
-        /* Container principal do Popover do Calendário */
-        div[data-baseweb="popover"], div[aria-label="Calendar"], [role="dialog"], div[data-baseweb="calendar"] {
+        /* Popover e Dialog do Calendário (Universal) */
+        div[data-baseweb="popover"], 
+        div[aria-label="Calendar"], 
+        [role="dialog"], 
+        div[data-baseweb="calendar"],
+        [data-testid="stDateInput"] iframe {
             background-color: #0F172A !important;
             border: 1px solid #475569 !important;
             border-radius: 12px !important;
             color: #FFFFFF !important;
         }
 
-        /* Cabeçalho do mês/ano e setas de navegação */
+        /* Cabeçalho do mês/ano, setas de navegação e seletores no telemóvel */
         div[data-baseweb="calendar"] header, 
-        div[data-baseweb="calendar"] header * {
+        div[data-baseweb="calendar"] header *,
+        div[data-baseweb="calendar"] select,
+        div[data-baseweb="calendar"] option {
             background-color: #0F172A !important;
             color: #FFFFFF !important;
             fill: #FFFFFF !important;
             font-weight: bold !important;
         }
 
-        /* Dias da semana (SU, MO, TU, WE, TH, FR, SA) */
+        /* Dias da semana (D, S, T, Q, Q, S, S / SU, MO, TU...) */
         div[data-baseweb="calendar"] [role="gridcell"] span,
-        div[data-baseweb="calendar"] header + div div {
+        div[data-baseweb="calendar"] header + div div,
+        div[data-baseweb="calendar"] [aria-colindex] {
             color: #38BDF8 !important;
             font-weight: bold !important;
         }
@@ -146,23 +153,15 @@ st.markdown(
             border: 1px solid #CBD5E1 !important;
         }
 
-        /* REMOVE A BOLA ESCURA/VERMELHA E QUALQUER DESTAQUE CIRCULAR DE DIA SELECIONADO/FOCO */
-        div[data-baseweb="calendar"] [role="gridcell"],
+        /* Estilização interna dos elementos dos dias */
         div[data-baseweb="calendar"] [role="gridcell"] *,
-        div[data-baseweb="calendar"] [aria-selected="true"],
-        div[data-baseweb="calendar"] [aria-selected="true"] *,
         div[data-baseweb="calendar"] [role="gridcell"] button,
         div[data-baseweb="calendar"] [role="gridcell"] div {
-            background-color: #F8FAFC !important;
             color: #0F172A !important;
             font-weight: 800 !important;
-            border-radius: 6px !important;
-            border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
         }
 
-        /* Remove os círculos gerados por pseudo-elementos CSS ::before e ::after */
+        /* REMOVE QUALQUER BOLA PRETA / CIRCULO DE FOCO NO TELEMÓVEL E DESKTOP */
         div[data-baseweb="calendar"] [role="gridcell"] *::before,
         div[data-baseweb="calendar"] [role="gridcell"] *::after {
             display: none !important;
@@ -170,9 +169,10 @@ st.markdown(
             border: none !important;
         }
 
-        /* Hover suave e discreto nos dias ao passar o mouse */
-        div[data-baseweb="calendar"] [role="gridcell"]:hover {
-            background-color: #E2E8F0 !important;
+        /* Ajuste do seletor nativo de data no Chrome/Safari Mobile */
+        ::-webkit-calendar-picker-indicator {
+            filter: invert(1) !important;
+            cursor: pointer;
         }
 
         /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
@@ -213,7 +213,7 @@ st.markdown(
             border-color: #EF4444 !important;
         }
 
-        /* DESTACAR A SETA DE ABRIR/FECHAR A BARRA LATERAL NO CELULAR E DESKTOP */
+        /* DESTACAR A SETA DE ABRIR/FECHAR A BARRA LATERAL NO TELEMÓVEL E DESKTOP */
         [data-testid="collapsedControl"] {
             display: block !important;
             background-color: #EF4444 !important;
