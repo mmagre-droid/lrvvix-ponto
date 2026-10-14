@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (COMPATÍVEL COM TELEMÓVEL E COMPUTADOR) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (RADICAL PARA DESTRUIR A BOLA DO CALENDÁRIO) ---
 st.markdown(
     """
     <style>
@@ -29,12 +29,11 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
-        /* Força a barra superior (Header) a ter fundo escuro */
+        /* Header e Container */
         header[data-testid="stHeader"] {
             background-color: #1E293B !important;
         }
         
-        /* Ajuste de espaçamento do container central */
         .block-container {
             background-color: #1E293B !important;
             padding-top: 1.5rem !important;
@@ -44,7 +43,7 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
-        /* Títulos e textos com bom contraste */
+        /* Títulos e textos gerais */
         h1, h2, h3, h4, h5, h6, span, p, label {
             color: #F8FAFC !important;
         }
@@ -56,11 +55,6 @@ st.markdown(
             padding: 0.5rem 1rem;
             box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
             transition: all 0.2s ease-in-out;
-        }
-        
-        .stButton>button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
         }
 
         /* Botão Primário */
@@ -79,7 +73,7 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* FORÇA FUNDO ESCURO E TEXTO BRANCO EM TODOS OS CAMPOS DE DATA */
+        /* INPUTS DE DATA */
         .stDateInput input, div[data-testid="stDateInput"] input {
             color: #FFFFFF !important;
             background-color: #334155 !important;
@@ -94,7 +88,6 @@ st.markdown(
             border-radius: 8px !important;
         }
 
-        /* Força texto escuro e legível em campos desativados (disabled) */
         .stTextInput input:disabled, .stSelectbox input:disabled {
             color: #0F172A !important;
             background-color: #F1F5F9 !important;
@@ -103,7 +96,6 @@ st.markdown(
             opacity: 1 !important;
         }
         
-        /* Cor dos placeholders */
         ::placeholder, ::-webkit-input-placeholder {
             color: #94A3B8 !important;
             opacity: 1 !important;
@@ -111,71 +103,76 @@ st.markdown(
         }
 
         /* ==========================================
-           CORREÇÃO DO CALENDÁRIO PARA COMPUTADOR E TELEMÓVEL
+           DESTRUIÇÃO TOTAL DA BOLA ESCURA DO CALENDÁRIO
            ========================================== */
-        /* Popover e Dialog do Calendário (Universal) */
+        /* Fundo do Popover */
         div[data-baseweb="popover"], 
         div[aria-label="Calendar"], 
         [role="dialog"], 
-        div[data-baseweb="calendar"],
-        [data-testid="stDateInput"] iframe {
+        div[data-baseweb="calendar"] {
             background-color: #0F172A !important;
             border: 1px solid #475569 !important;
             border-radius: 12px !important;
             color: #FFFFFF !important;
         }
 
-        /* Cabeçalho do mês/ano, setas de navegação e seletores no telemóvel */
+        /* Cabeçalho (Mês / Ano / Setas) */
         div[data-baseweb="calendar"] header, 
-        div[data-baseweb="calendar"] header *,
-        div[data-baseweb="calendar"] select,
-        div[data-baseweb="calendar"] option {
+        div[data-baseweb="calendar"] header * {
             background-color: #0F172A !important;
             color: #FFFFFF !important;
             fill: #FFFFFF !important;
             font-weight: bold !important;
         }
 
-        /* Dias da semana (D, S, T, Q, Q, S, S / SU, MO, TU...) */
-        div[data-baseweb="calendar"] [role="gridcell"] span,
+        /* Dias da Semana (D S T Q Q S S / SU MO TU...) */
         div[data-baseweb="calendar"] header + div div,
         div[data-baseweb="calendar"] [aria-colindex] {
             color: #38BDF8 !important;
             font-weight: bold !important;
         }
 
-        /* Quadros e Números dos Dias do Mês (Fundo Branco Padrão) */
+        /* Todas as células de dia (Fundo sempre branco limpo) */
         div[data-baseweb="calendar"] [role="gridcell"] {
-            background-color: #F8FAFC !important;
-            color: #0F172A !important;
-            font-weight: 800 !important;
-            border-radius: 6px !important;
+            background-color: #FFFFFF !important;
             border: 1px solid #CBD5E1 !important;
+            border-radius: 6px !important;
         }
 
-        /* Estilização interna dos elementos dos dias */
-        div[data-baseweb="calendar"] [role="gridcell"] *,
+        /* REMOVE ELEMENTOS INTERNOS QUE CRIAM A BOLA PRETA/ESCURA */
         div[data-baseweb="calendar"] [role="gridcell"] button,
         div[data-baseweb="calendar"] [role="gridcell"] div {
-            color: #0F172A !important;
-            font-weight: 800 !important;
+            background-color: transparent !important;
+            background: none !important;
+            box-shadow: none !important;
+            border: none !important;
+            outline: none !important;
         }
 
-        /* REMOVE QUALQUER BOLA PRETA / CIRCULO DE FOCO NO TELEMÓVEL E DESKTOP */
+        /* MATA QUALQUER CÍRCULO CRIADO VIA PSEUDO-ELEMENTO CSS */
         div[data-baseweb="calendar"] [role="gridcell"] *::before,
         div[data-baseweb="calendar"] [role="gridcell"] *::after {
+            content: none !important;
             display: none !important;
-            background: transparent !important;
-            border: none !important;
         }
 
-        /* Ajuste do seletor nativo de data no Chrome/Safari Mobile */
-        ::-webkit-calendar-picker-indicator {
-            filter: invert(1) !important;
-            cursor: pointer;
+        /* FORÇA TODOS OS NÚMEROS DOS DIAS A FICAREM PRETO PURO E NÍTIDOS */
+        div[data-baseweb="calendar"] [role="gridcell"] *,
+        div[data-baseweb="calendar"] [role="gridcell"] span,
+        div[data-baseweb="calendar"] [role="gridcell"] button {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            font-weight: 900 !important;
+            font-size: 1rem !important;
+            opacity: 1 !important;
         }
 
-        /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
+        /* Destaque suave apenas no dia atualmente selecionado (Sem bola) */
+        div[data-baseweb="calendar"] [aria-selected="true"] {
+            background-color: #38BDF8 !important;
+        }
+
+        /* OLHO DE SENHA DO LOGIN */
         div[data-baseweb="input"] button, div[data-testid="stTextInput"] button {
             background-color: #334155 !important;
             border: 1px solid #475569 !important;
@@ -191,7 +188,7 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* Sidebar escura e padronizada */
+        /* Sidebar */
         section[data-testid="stSidebar"] {
             background-color: #0F172A !important;
             color: #FFFFFF !important;
@@ -200,7 +197,6 @@ st.markdown(
             color: #F1F5F9 !important;
         }
 
-        /* AJUSTE DO BOTÃO DE SAIR E BOTÕES DENTRO DA SIDEBAR */
         section[data-testid="stSidebar"] .stButton>button {
             background-color: #334155 !important;
             color: #FFFFFF !important;
@@ -213,7 +209,7 @@ st.markdown(
             border-color: #EF4444 !important;
         }
 
-        /* DESTACAR A SETA DE ABRIR/FECHAR A BARRA LATERAL NO TELEMÓVEL E DESKTOP */
+        /* Seta da Sidebar */
         [data-testid="collapsedControl"] {
             display: block !important;
             background-color: #EF4444 !important;
@@ -223,7 +219,6 @@ st.markdown(
             box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.4) !important;
         }
 
-        /* Força a cor do ícone da seta em branco dentro do fundo vermelho */
         [data-testid="collapsedControl"] svg {
             fill: #FFFFFF !important;
             color: #FFFFFF !important;
@@ -336,9 +331,7 @@ if not st.session_state.autenticado:
             else:
               st.session_state.usuario_perfil = "tecnico"
 
-            st.success(
-                f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!"
-            )
+            st.success(f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!")
             st.rerun()
           else:
             st.error("❌ CPF não encontrado na tabela Técnicos.")
@@ -380,9 +373,7 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
 # ==========================================
 if menu == "Registrar Ponto":
   st.title("⚡ LRVIX - CONTROLE DE PONTO")
-  st.markdown(
-      f"Registrando ponto para: **{st.session_state.usuario_nome}**"
-  )
+  st.markdown(f"Registrando ponto para: **{st.session_state.usuario_nome}**")
 
   try:
     tecnico_cpf = st.session_state.usuario_cpf
@@ -419,16 +410,13 @@ if menu == "Registrar Ponto":
     tem_retorno_almoco = bool(registro_atual.get("retorno_almoco"))
     tem_saida = bool(registro_atual.get("saida"))
 
-
     def validar_intervalo(ultimo_horario_str):
       if not ultimo_horario_str:
         return True, ""
       try:
         partes = str(ultimo_horario_str).split(":")
         h, m, s = int(partes[0]), int(partes[1]), int(partes[2].split(".")[0])
-        dt_ultimo = agora.replace(
-            hour=h, minute=m, second=s, microsecond=0
-        )
+        dt_ultimo = agora.replace(hour=h, minute=m, second=s, microsecond=0)
         diferenca = agora - dt_ultimo
 
         if diferenca < timedelta(hours=1):
@@ -442,7 +430,6 @@ if menu == "Registrar Ponto":
       except Exception as err:
         logger.error(f"Erro ao validar intervalo: {err}")
       return True, ""
-
 
     if not tem_entrada:
       if st.button(
@@ -575,9 +562,7 @@ if menu == "Registrar Ponto":
           if c in df_regs.columns
       ]
       df_regs = df_regs[colunas_desejadas].copy()
-      df_regs.columns = [
-          c.upper().replace("_", " ") for c in df_regs.columns
-      ]
+      df_regs.columns = [c.upper().replace("_", " ") for c in df_regs.columns]
       if "DATA" in df_regs.columns:
         df_regs["DATA"] = pd.to_datetime(df_regs["DATA"]).dt.strftime(
             "%d/%m/%Y"
@@ -799,7 +784,9 @@ elif menu == "Gestão de Lançamentos":
                 "🔒 Seus lançamentos estão bloqueados para edição. Exibindo"
                 " apenas consulta do histórico."
             )
-          st.dataframe(tabela_espelho, use_container_width=True, hide_index=True)
+          st.dataframe(
+              tabela_espelho, use_container_width=True, hide_index=True
+          )
     else:
       st.info("Nenhum lançamento encontrado.")
   except Exception as e:
@@ -826,7 +813,9 @@ elif menu == "📅 Calendário de Folgas":
     dados_folgas = res_folgas.data or []
 
     for row in dados_folgas:
-      cpf_folga = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(11)
+      cpf_folga = "".join(filter(str.isdigit, str(row.get("cpf", "")))).zfill(
+          11
+      )
       row["nome_tecnico"] = mapa_tecnicos.get(cpf_folga, "Desconhecido")
 
     if st.session_state.usuario_perfil == "gestor":
@@ -883,7 +872,9 @@ elif menu == "📅 Calendário de Folgas":
         with st.form("form_remover_folga"):
           opcoes_exclusao = []
           for _, r in df_exibicao.iterrows():
-            opcoes_exclusao.append(f"{r['TÉCNICO']} - {r['DATA']} ({r['MOTIVO']})")
+            opcoes_exclusao.append(
+                f"{r['TÉCNICO']} - {r['DATA']} ({r['MOTIVO']})"
+            )
 
           folga_selecionada = st.selectbox(
               "Selecione para remover", options=opcoes_exclusao
