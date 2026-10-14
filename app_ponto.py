@@ -70,19 +70,38 @@ st.markdown(
             border: none;
         }
 
-        /* Campos de texto e caixas de seleção legíveis */
-        .stTextInput input, .stSelectbox input, div[data-baseweb="select"] span {
+        /* CAMPOS DE TEXTO, DATAS E CAIXAS DE SELEÇÃO COM ALTO CONTRASTE */
+        .stTextInput input, .stSelectbox input, .stDateInput input, div[data-baseweb="select"] span {
             color: #0F172A !important;
             background-color: #FFFFFF !important;
+            font-weight: 700 !important;
+            -webkit-text-fill-color: #0F172A !important; /* Força cor preta no Safari/iOS e Chrome */
+            opacity: 1 !important;
+        }
+
+        /* Força texto escuro e legível mesmo quando o campo está desativado (disabled) */
+        .stTextInput input:disabled, .stSelectbox input:disabled, .stDateInput input:disabled {
+            color: #0F172A !important;
+            background-color: #F1F5F9 !important;
+            font-weight: 700 !important;
+            -webkit-text-fill-color: #0F172A !important;
+            opacity: 1 !important;
         }
         
-        .stTextInput>div>div>input, .stSelectbox>div>div>div, div[data-baseweb="input"] {
+        /* Cor dos placeholders (YYYY/MM/DD) com tom escuro legível */
+        ::placeholder, ::-webkit-input-placeholder {
+            color: #475569 !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #475569 !important;
+        }
+        
+        .stTextInput>div>div>input, .stSelectbox>div>div>div, .stDateInput>div>div>input, div[data-baseweb="input"] {
             border-radius: 8px !important;
             border: 1px solid #475569 !important;
             background-color: #FFFFFF !important;
         }
 
-        /* CORREÇÃO DEFINITIVA DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
+        /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
         div[data-baseweb="input"] button, div[data-testid="stTextInput"] button {
             background-color: #334155 !important;
             border: 1px solid #475569 !important;
@@ -729,7 +748,7 @@ elif menu == "📅 Calendário de Folgas":
         mapa_tecnicos[cpf_limpo] = t["nome"]
         mapa_cpf_por_nome[t["nome"]] = cpf_limpo
 
-    res_folgas = supabase.table("CALENDARIO_FOLGA").select("*").execute()
+    res_folgas = supabase.table("CALENDARIO_FOLGA").select("*"><execute()
     dados_folgas = res_folgas.data or []
 
     for row in dados_folgas:
