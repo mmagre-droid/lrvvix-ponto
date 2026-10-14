@@ -75,7 +75,7 @@ st.markdown(
             color: #0F172A !important;
             background-color: #FFFFFF !important;
             font-weight: 700 !important;
-            -webkit-text-fill-color: #0F172A !important; /* Força cor preta no Safari/iOS e Chrome */
+            -webkit-text-fill-color: #0F172A !important;
             opacity: 1 !important;
         }
 
@@ -134,7 +134,7 @@ st.markdown(
         }
         
         section[data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #DC2626 !important; /* Fica vermelho ao passar o mouse/toque */
+            background-color: #DC2626 !important;
             color: #FFFFFF !important;
             border-color: #EF4444 !important;
         }
@@ -142,7 +142,7 @@ st.markdown(
         /* DESTACAR A SETA DE ABRIR/FECHAR A BARRA LATERAL NO CELULAR E DESKTOP */
         [data-testid="collapsedControl"] {
             display: block !important;
-            background-color: #EF4444 !important; /* Cor vermelha de destaque */
+            background-color: #EF4444 !important;
             border-radius: 8px !important;
             padding: 6px 10px !important;
             margin: 10px !important;
@@ -748,7 +748,7 @@ elif menu == "📅 Calendário de Folgas":
         mapa_tecnicos[cpf_limpo] = t["nome"]
         mapa_cpf_por_nome[t["nome"]] = cpf_limpo
 
-    res_folgas = supabase.table("CALENDARIO_FOLGA").select("*"><execute()
+    res_folgas = supabase.table("CALENDARIO_FOLGA").select("*").execute()
     dados_folgas = res_folgas.data or []
 
     for row in dados_folgas:
