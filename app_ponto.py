@@ -49,7 +49,7 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
-        /* Botões padronizados */
+        /* Botões padronizados gerais */
         .stButton>button {
             border-radius: 10px;
             font-weight: 600;
@@ -89,6 +89,19 @@ st.markdown(
         }
         section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] span {
             color: #F1F5F9 !important;
+        }
+
+        /* AJUSTE DO BOTÃO DE SAIR E BOTÕES DENTRO DA SIDEBAR */
+        section[data-testid="stSidebar"] .stButton>button {
+            background-color: #334155 !important;
+            color: #FFFFFF !important;
+            border: 1px solid #475569 !important;
+        }
+        
+        section[data-testid="stSidebar"] .stButton>button:hover {
+            background-color: #DC2626 !important; /* Fica vermelho ao passar o mouse/toque */
+            color: #FFFFFF !important;
+            border-color: #EF4444 !important;
         }
 
         /* DESTACAR A SETA DE ABRIR/FECHAR A BARRA LATERAL NO CELULAR E DESKTOP */
