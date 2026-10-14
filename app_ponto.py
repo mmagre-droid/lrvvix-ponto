@@ -82,16 +82,20 @@ st.markdown(
             background-color: #FFFFFF !important;
         }
 
-        /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
-        div[data-baseweb="input"] button {
-            background-color: #E2E8F0 !important;
+        /* CORREÇÃO DEFINITIVA DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
+        div[data-baseweb="input"] button, div[data-testid="stTextInput"] button {
+            background-color: #334155 !important;
+            border: 1px solid #475569 !important;
             border-top-right-radius: 8px !important;
             border-bottom-right-radius: 8px !important;
+            opacity: 1 !important;
+            visibility: visible !important;
         }
         
-        div[data-baseweb="input"] button svg {
-            fill: #0F172A !important;
-            color: #0F172A !important;
+        div[data-baseweb="input"] button svg, div[data-testid="stTextInput"] button svg {
+            fill: #FFFFFF !important;
+            color: #FFFFFF !important;
+            opacity: 1 !important;
         }
 
         /* Sidebar escura e padronizada */
