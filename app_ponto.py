@@ -70,8 +70,17 @@ st.markdown(
             border: none;
         }
 
-        /* CAMPOS DE TEXTO, DATAS E CAIXAS DE SELEÇÃO COM ALTO CONTRASTE */
-        .stTextInput input, .stSelectbox input, .stDateInput input, div[data-baseweb="select"] span {
+        /* CAMPOS DE TEXTO E CAIXAS DE SELEÇÃO */
+        .stTextInput input, .stSelectbox input, div[data-baseweb="select"] span {
+            color: #0F172A !important;
+            background-color: #FFFFFF !important;
+            font-weight: 700 !important;
+            -webkit-text-fill-color: #0F172A !important;
+            opacity: 1 !important;
+        }
+
+        /* CAMPOS DE DATA (INPUTS DE DIGITAÇÃO) COM TEXTO ESCURO E LEGÍVEL */
+        .stDateInput input {
             color: #0F172A !important;
             background-color: #FFFFFF !important;
             font-weight: 700 !important;
@@ -88,7 +97,7 @@ st.markdown(
             opacity: 1 !important;
         }
         
-        /* Cor dos placeholders (YYYY/MM/DD) com tom escuro legível */
+        /* Cor dos placeholders */
         ::placeholder, ::-webkit-input-placeholder {
             color: #475569 !important;
             opacity: 1 !important;
@@ -99,6 +108,44 @@ st.markdown(
             border-radius: 8px !important;
             border: 1px solid #475569 !important;
             background-color: #FFFFFF !important;
+        }
+
+        /* ==========================================
+           CORREÇÃO DO CALENDÁRIO FLUTUANTE (POPUP)
+           ========================================== */
+        div[data-baseweb="calendar"] {
+            background-color: #0F172A !important;
+            color: #F8FAFC !important;
+            border: 1px solid #475569 !important;
+            border-radius: 12px !important;
+        }
+
+        div[data-baseweb="calendar"] * {
+            color: #F8FAFC !important;
+        }
+
+        /* Cabeçalho do calendário (Mês e Ano) */
+        div[data-baseweb="calendar"] header, div[data-baseweb="calendar"] select {
+            background-color: #1E293B !important;
+            color: #F8FAFC !important;
+        }
+
+        /* Dias da semana (D, S, T, Q, Q, S, S) */
+        div[data-baseweb="calendar"] [role="gridcell"], div[data-baseweb="calendar"] [aria-colindex] {
+            color: #F8FAFC !important;
+        }
+
+        /* Dias selecionados ou em foco no calendário */
+        div[data-baseweb="calendar"] [aria-selected="true"] {
+            background-color: #EF4444 !important;
+            color: #FFFFFF !important;
+            font-weight: bold !important;
+        }
+
+        /* Hover nos dias do calendário */
+        div[data-baseweb="calendar"] button:hover {
+            background-color: #334155 !important;
+            color: #FFFFFF !important;
         }
 
         /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
