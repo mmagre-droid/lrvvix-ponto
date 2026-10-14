@@ -82,6 +82,18 @@ st.markdown(
             background-color: #FFFFFF !important;
         }
 
+        /* CORREÇÃO DO BOTÃO DO OLHO (VISUALIZAR SENHA) */
+        div[data-baseweb="input"] button {
+            background-color: #E2E8F0 !important;
+            border-top-right-radius: 8px !important;
+            border-bottom-right-radius: 8px !important;
+        }
+        
+        div[data-baseweb="input"] button svg {
+            fill: #0F172A !important;
+            color: #0F172A !important;
+        }
+
         /* Sidebar escura e padronizada */
         section[data-testid="stSidebar"] {
             background-color: #0F172A !important;
