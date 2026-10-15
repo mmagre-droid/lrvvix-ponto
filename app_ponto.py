@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (RADICAL PARA DESTRUIR A BOLA DO CALENDÁRIO) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
 st.markdown(
     """
     <style>
@@ -73,7 +73,7 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* INPUTS DE DATA */
+        /* INPUTS DE DATA (Caixa do Filtro) */
         .stDateInput input, div[data-testid="stDateInput"] input {
             color: #FFFFFF !important;
             background-color: #334155 !important;
@@ -103,73 +103,59 @@ st.markdown(
         }
 
         /* ==========================================
-           DESTRUIÇÃO TOTAL DA BOLA ESCURA DO CALENDÁRIO
+           FORÇA NÚMEROS DO CALENDÁRIO NA COR PRETA
            ========================================== */
-        /* Fundo do Popover */
+        /* Fundo do Popover do Calendário */
         div[data-baseweb="popover"], 
         div[aria-label="Calendar"], 
         [role="dialog"], 
         div[data-baseweb="calendar"] {
-            background-color: #0F172A !important;
-            border: 1px solid #475569 !important;
-            border-radius: 12px !important;
-            color: #FFFFFF !important;
-        }
-
-        /* Cabeçalho (Mês / Ano / Setas) */
-        div[data-baseweb="calendar"] header, 
-        div[data-baseweb="calendar"] header * {
-            background-color: #0F172A !important;
-            color: #FFFFFF !important;
-            fill: #FFFFFF !important;
-            font-weight: bold !important;
-        }
-
-        /* Dias da Semana (D S T Q Q S S / SU MO TU...) */
-        div[data-baseweb="calendar"] header + div div,
-        div[data-baseweb="calendar"] [aria-colindex] {
-            color: #38BDF8 !important;
-            font-weight: bold !important;
-        }
-
-        /* Todas as células de dia (Fundo sempre branco limpo) */
-        div[data-baseweb="calendar"] [role="gridcell"] {
             background-color: #FFFFFF !important;
             border: 1px solid #CBD5E1 !important;
-            border-radius: 6px !important;
+            border-radius: 12px !important;
+            color: #000000 !important;
         }
 
-        /* REMOVE ELEMENTOS INTERNOS QUE CRIAM A BOLA PRETA/ESCURA */
-        div[data-baseweb="calendar"] [role="gridcell"] button,
-        div[data-baseweb="calendar"] [role="gridcell"] div {
-            background-color: transparent !important;
-            background: none !important;
-            box-shadow: none !important;
-            border: none !important;
-            outline: none !important;
+        /* Cabeçalho do Mês, Ano e Setas */
+        div[data-baseweb="calendar"] header, 
+        div[data-baseweb="calendar"] header *,
+        div[data-baseweb="calendar"] header button,
+        div[data-baseweb="calendar"] header div {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            fill: #000000 !important;
+            font-weight: bold !important;
         }
 
-        /* MATA QUALQUER CÍRCULO CRIADO VIA PSEUDO-ELEMENTO CSS */
-        div[data-baseweb="calendar"] [role="gridcell"] *::before,
-        div[data-baseweb="calendar"] [role="gridcell"] *::after {
-            content: none !important;
-            display: none !important;
+        /* Dias da Semana (D, S, T, Q, Q, S, S) */
+        div[data-baseweb="calendar"] header + div div,
+        div[data-baseweb="calendar"] [aria-colindex] {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            font-weight: bold !important;
         }
 
-        /* FORÇA TODOS OS NÚMEROS DOS DIAS A FICAREM PRETO PURO E NÍTIDOS */
+        /* FORÇA TODOS OS NÚMEROS DOS DIAS DO MÊS PARA COR PRETA PURO (#000000) */
+        div[data-baseweb="calendar"] [role="gridcell"],
         div[data-baseweb="calendar"] [role="gridcell"] *,
+        div[data-baseweb="calendar"] [role="gridcell"] button,
         div[data-baseweb="calendar"] [role="gridcell"] span,
-        div[data-baseweb="calendar"] [role="gridcell"] button {
+        div[data-baseweb="calendar"] [role="gridcell"] div {
             color: #000000 !important;
             -webkit-text-fill-color: #000000 !important;
             font-weight: 900 !important;
-            font-size: 1rem !important;
             opacity: 1 !important;
+            visibility: visible !important;
         }
 
-        /* Destaque suave apenas no dia atualmente selecionado (Sem bola) */
+        /* Destaque em vermelho apenas no dia selecionado */
         div[data-baseweb="calendar"] [aria-selected="true"] {
-            background-color: #38BDF8 !important;
+            background-color: #EF4444 !important;
+            border-radius: 6px !important;
+        }
+        div[data-baseweb="calendar"] [aria-selected="true"] * {
+            color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
         }
 
         /* OLHO DE SENHA DO LOGIN */
