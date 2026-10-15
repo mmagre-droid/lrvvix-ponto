@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA (TEMA ESCURO DE ALTO CONTRASTE PARA O CALENDÁRIO) ---
 st.markdown(
     """
     <style>
@@ -103,59 +103,63 @@ st.markdown(
         }
 
         /* ==========================================
-           FORÇA NÚMEROS DO CALENDÁRIO NA COR PRETA
+           FORÇA TEMA ESCURO DE ALTO CONTRASTE NO CALENDÁRIO
+           (GARANTE LEITURA NO TELEMÓVEL E NO PC)
            ========================================== */
-        /* Fundo do Popover do Calendário */
         div[data-baseweb="popover"], 
         div[aria-label="Calendar"], 
         [role="dialog"], 
-        div[data-baseweb="calendar"] {
-            background-color: #FFFFFF !important;
-            border: 1px solid #CBD5E1 !important;
-            border-radius: 12px !important;
-            color: #000000 !important;
+        div[data-baseweb="calendar"],
+        div[data-baseweb="calendar"] * {
+            background-color: #0F172A !important;
+            color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
         }
 
         /* Cabeçalho do Mês, Ano e Setas */
         div[data-baseweb="calendar"] header, 
-        div[data-baseweb="calendar"] header *,
-        div[data-baseweb="calendar"] header button,
-        div[data-baseweb="calendar"] header div {
-            color: #000000 !important;
-            -webkit-text-fill-color: #000000 !important;
-            fill: #000000 !important;
+        div[data-baseweb="calendar"] header * {
+            color: #FACC15 !important; /* Amarelo em destaque */
+            -webkit-text-fill-color: #FACC15 !important;
+            fill: #FACC15 !important;
             font-weight: bold !important;
         }
 
-        /* Dias da Semana (D, S, T, Q, Q, S, S) */
+        /* Dias da Semana (D S T Q Q S S) */
         div[data-baseweb="calendar"] header + div div,
         div[data-baseweb="calendar"] [aria-colindex] {
-            color: #000000 !important;
-            -webkit-text-fill-color: #000000 !important;
+            color: #38BDF8 !important; /* Azul claro */
+            -webkit-text-fill-color: #38BDF8 !important;
             font-weight: bold !important;
         }
 
-        /* FORÇA TODOS OS NÚMEROS DOS DIAS DO MÊS PARA COR PRETA PURO (#000000) */
-        div[data-baseweb="calendar"] [role="gridcell"],
-        div[data-baseweb="calendar"] [role="gridcell"] *,
-        div[data-baseweb="calendar"] [role="gridcell"] button,
-        div[data-baseweb="calendar"] [role="gridcell"] span,
-        div[data-baseweb="calendar"] [role="gridcell"] div {
-            color: #000000 !important;
-            -webkit-text-fill-color: #000000 !important;
-            font-weight: 900 !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-        }
-
-        /* Destaque em vermelho apenas no dia selecionado */
-        div[data-baseweb="calendar"] [aria-selected="true"] {
-            background-color: #EF4444 !important;
+        /* Quadros e Números de Todos os Dias do Mês */
+        div[data-baseweb="calendar"] [role="gridcell"] {
+            background-color: #1E293B !important;
+            border: 1px solid #475569 !important;
             border-radius: 6px !important;
         }
-        div[data-baseweb="calendar"] [aria-selected="true"] * {
+
+        div[data-baseweb="calendar"] [role="gridcell"] *,
+        div[data-baseweb="calendar"] [role="gridcell"] button,
+        div[data-baseweb="calendar"] [role="gridcell"] span {
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
+            font-weight: 900 !important;
+            font-size: 1.05rem !important;
+        }
+
+        /* Remove qualquer bola preta / círculo interno de foco */
+        div[data-baseweb="calendar"] [role="gridcell"] *::before,
+        div[data-baseweb="calendar"] [role="gridcell"] *::after {
+            display: none !important;
+            content: none !important;
+        }
+
+        /* Dia Selecionado com fundo Azul Vivo */
+        div[data-baseweb="calendar"] [aria-selected="true"] {
+            background-color: #2563EB !important;
+            border-color: #60A5FA !important;
         }
 
         /* OLHO DE SENHA DO LOGIN */
@@ -329,7 +333,6 @@ if not st.session_state.autenticado:
 # APLICAÇÃO PRINCIPAL & MENU NA BARRA LATERAL OCULTA
 # ==========================================
 
-# Define as opções de abas
 if st.session_state.usuario_perfil == "gestor":
   opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
 else:
@@ -339,7 +342,6 @@ else:
       "📅 Calendário de Folgas",
   ]
 
-# Sidebar
 st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
