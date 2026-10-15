@@ -4,9 +4,10 @@ import logging
 import pandas as pd
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
+# --- CONFIGURAÇÃO DA PÁGINA (SIDEBAR INICIA RECOLHIDA) ---
 st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO",
     page_icon="⚡",
@@ -29,6 +30,7 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
+        /* Header e Container */
         header[data-testid="stHeader"] {
             background-color: #1E293B !important;
         }
@@ -42,6 +44,7 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
+        /* Títulos e textos gerais */
         h1, h2, h3, h4, h5, h6, span, p, label {
             color: #F8FAFC !important;
         }
@@ -55,6 +58,7 @@ st.markdown(
             transition: all 0.2s ease-in-out;
         }
 
+        /* Botão Primário */
         button[kind="primary"] {
             background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important;
             color: white !important;
@@ -70,34 +74,12 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* INPUTS DE DATA (Caixa do Filtro) */
-        .stDateInput input, div[data-testid="stDateInput"] input {
-            color: #FFFFFF !important;
-            background-color: #334155 !important;
+        .stTextInput input:disabled, .stSelectbox input:disabled {
+            color: #0F172A !important;
+            background-color: #F1F5F9 !important;
             font-weight: 700 !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-            border-radius: 8px !important;
-        }
-
-        .stDateInput > div > div, div[data-testid="stDateInput"] > div > div {
-            background-color: #334155 !important;
-            border: 1px solid #64748B !important;
-            border-radius: 8px !important;
-        }
-
-        /* FORÇA FUNDO ESCURO NO POPOVER DO CALENDÁRIO */
-        [data-baseweb="popover"] {
-            background-color: #1E293B !important;
-        }
-
-        div[data-baseweb="calendar"] {
-            background-color: #1E293B !important;
-        }
-
-        div[data-baseweb="calendar"] * {
-            background-color: #1E293B !important;
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
+            -webkit-text-fill-color: #0F172A !important;
+            opacity: 1 !important;
         }
 
         /* OLHO DE SENHA DO LOGIN */
@@ -164,6 +146,31 @@ pwa_code = """
 <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/icone.png">
 """
 st.markdown(pwa_code, unsafe_allow_html=True)
+
+
+# --- FUNÇÃO AUXILIAR: CAMPO DE DATA EM HTML5 NATIVO (100% VISÍVEL NO CELULAR) ---
+def seletor_data_html5(label: str, key: str):
+  st.markdown(
+      f"<label style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem;'>"
+      f"{label}</label>",
+      unsafe_allow_html=True,
+  )
+  val_str = st.text_input(
+      label, key=f"input_{key}", label_visibility="collapsed"
+  )
+
+  dt_retorno = None
+  if val_str:
+    try:
+      dt_retorno = datetime.strptime(val_str.strip(), "%Y-%m-%d").date()
+    except ValueError:
+      try:
+        dt_retorno = datetime.strptime(val_str.strip(), "%d/%m/%Y").date()
+      except ValueError:
+        st.caption("⚠️ Formato aceito: YYYY-MM-DD ou DD/MM/AAAA")
+
+  return dt_retorno
+
 
 # --- CONFIGURAÇÕES DE LOG ---
 logging.basicConfig(level=logging.INFO)
@@ -546,9 +553,9 @@ elif menu == "Gestão de Lançamentos":
           filtro_tecnico = st.selectbox("Técnico", lista_tecnicos)
 
       with col_f2:
-        filtro_data_inicial = st.date_input("Data Inicial", value=None)
+        filtro_data_inicial = seletor_data_html5("DATA INICIAL", "dt_ini_gestao")
       with col_f3:
-        filtro_data_final = st.date_input("Data Final", value=None)
+        filtro_data_final = seletor_data_html5("DATA FINAL", "dt_fim_gestao")
 
       if filtro_tecnico:
         df = df[df["nome_tecnico"] == filtro_tecnico]
@@ -754,7 +761,7 @@ elif menu == "📅 Calendário de Folgas":
               "Técnico", options=sorted(list(mapa_cpf_por_nome.keys()))
           )
         with col_g2:
-          data_folga = st.date_input("Data da Folga")
+          data_folga = seletor_data_html5("DATA DA FOLGA", "dt_cad_folga")
         with col_g3:
           motivo_folga = st.text_input("Motivo", value="Folga")
 
@@ -763,21 +770,24 @@ elif menu == "📅 Calendário de Folgas":
         )
 
         if btn_salvar_folga:
-          cpf_alvo = mapa_cpf_por_nome.get(tec_selecionado)
-          data_iso = data_folga.isoformat()
-          try:
-            supabase.table("CALENDARIO_FOLGA").upsert(
-                {
-                    "cpf": cpf_alvo,
-                    "data": data_iso,
-                    "motivo": motivo_folga,
-                },
-                on_conflict="cpf,data",
-            ).execute()
-            st.success("✅ Folga agendada com sucesso!")
-            st.rerun()
-          except Exception as err:
-            st.error(f"Erro: {err}")
+          if not data_folga:
+            st.warning("⚠️ Informe a data da folga.")
+          else:
+            cpf_alvo = mapa_cpf_por_nome.get(tec_selecionado)
+            data_iso = data_folga.isoformat()
+            try:
+              supabase.table("CALENDARIO_FOLGA").upsert(
+                  {
+                      "cpf": cpf_alvo,
+                      "data": data_iso,
+                      "motivo": motivo_folga,
+                  },
+                  on_conflict="cpf,data",
+              ).execute()
+              st.success("✅ Folga agendada com sucesso!")
+              st.rerun()
+            except Exception as err:
+              st.error(f"Erro: {err}")
 
     st.markdown("---")
     st.subheader("📋 Lista de Folgas Cadastradas")
