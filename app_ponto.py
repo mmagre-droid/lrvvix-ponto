@@ -6,7 +6,7 @@ import requests
 import streamlit as st
 from supabase import create_client
 
-# --- CONFIGURAÇÃO DA PÁGINA (SIDEBAR INICIA RECOLHIDA) ---
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO",
     page_icon="⚡",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA (TEMA ESCURO DE ALTO CONTRASTE PARA O CALENDÁRIO) ---
+# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
 st.markdown(
     """
     <style>
@@ -29,7 +29,6 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
-        /* Header e Container */
         header[data-testid="stHeader"] {
             background-color: #1E293B !important;
         }
@@ -43,7 +42,6 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
-        /* Títulos e textos gerais */
         h1, h2, h3, h4, h5, h6, span, p, label {
             color: #F8FAFC !important;
         }
@@ -57,7 +55,6 @@ st.markdown(
             transition: all 0.2s ease-in-out;
         }
 
-        /* Botão Primário */
         button[kind="primary"] {
             background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important;
             color: white !important;
@@ -88,78 +85,19 @@ st.markdown(
             border-radius: 8px !important;
         }
 
-        .stTextInput input:disabled, .stSelectbox input:disabled {
-            color: #0F172A !important;
-            background-color: #F1F5F9 !important;
-            font-weight: 700 !important;
-            -webkit-text-fill-color: #0F172A !important;
-            opacity: 1 !important;
-        }
-        
-        ::placeholder, ::-webkit-input-placeholder {
-            color: #94A3B8 !important;
-            opacity: 1 !important;
-            -webkit-text-fill-color: #94A3B8 !important;
-        }
-
-        /* ==========================================
-           FORÇA TEMA ESCURO DE ALTO CONTRASTE NO CALENDÁRIO
-           (GARANTE LEITURA NO TELEMÓVEL E NO PC)
-           ========================================== */
-        div[data-baseweb="popover"], 
-        div[aria-label="Calendar"], 
-        [role="dialog"], 
-        div[data-baseweb="calendar"],
-        div[data-baseweb="calendar"] * {
-            background-color: #0F172A !important;
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-        }
-
-        /* Cabeçalho do Mês, Ano e Setas */
-        div[data-baseweb="calendar"] header, 
-        div[data-baseweb="calendar"] header * {
-            color: #FACC15 !important; /* Amarelo em destaque */
-            -webkit-text-fill-color: #FACC15 !important;
-            fill: #FACC15 !important;
-            font-weight: bold !important;
-        }
-
-        /* Dias da Semana (D S T Q Q S S) */
-        div[data-baseweb="calendar"] header + div div,
-        div[data-baseweb="calendar"] [aria-colindex] {
-            color: #38BDF8 !important; /* Azul claro */
-            -webkit-text-fill-color: #38BDF8 !important;
-            font-weight: bold !important;
-        }
-
-        /* Quadros e Números de Todos os Dias do Mês */
-        div[data-baseweb="calendar"] [role="gridcell"] {
+        /* FORÇA FUNDO ESCURO NO POPOVER DO CALENDÁRIO */
+        [data-baseweb="popover"] {
             background-color: #1E293B !important;
-            border: 1px solid #475569 !important;
-            border-radius: 6px !important;
         }
 
-        div[data-baseweb="calendar"] [role="gridcell"] *,
-        div[data-baseweb="calendar"] [role="gridcell"] button,
-        div[data-baseweb="calendar"] [role="gridcell"] span {
+        div[data-baseweb="calendar"] {
+            background-color: #1E293B !important;
+        }
+
+        div[data-baseweb="calendar"] * {
+            background-color: #1E293B !important;
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
-            font-weight: 900 !important;
-            font-size: 1.05rem !important;
-        }
-
-        /* Remove qualquer bola preta / círculo interno de foco */
-        div[data-baseweb="calendar"] [role="gridcell"] *::before,
-        div[data-baseweb="calendar"] [role="gridcell"] *::after {
-            display: none !important;
-            content: none !important;
-        }
-
-        /* Dia Selecionado com fundo Azul Vivo */
-        div[data-baseweb="calendar"] [aria-selected="true"] {
-            background-color: #2563EB !important;
-            border-color: #60A5FA !important;
         }
 
         /* OLHO DE SENHA DO LOGIN */
