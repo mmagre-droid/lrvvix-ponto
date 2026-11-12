@@ -1,16 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
 import logging
 import pandas as pd
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
 from supabase import create_client
 
-# --- CONFIGURAÇÃO DA PÁGINA (SIDEBAR INICIA RECOLHIDA) ---
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="LRVIX - CONTROLE DE PONTO",
-    page_icon="⚡",
+    page_icon=str(__import__("pathlib").Path(__file__).resolve().parent / "LRVIX_PONTO.png"),
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -49,6 +48,16 @@ st.markdown(
             color: #F8FAFC !important;
         }
 
+        /* PADRONIZAÇÃO DA ALTURA E MARGEM DOS RÓTULOS (LABELS) */
+        div[data-testid="stForm"] label,
+        div[data-testid="column"] label,
+        .stTextInput label, .stSelectbox label {
+            font-weight: 700 !important;
+            color: #F8FAFC !important;
+            font-size: 0.85rem !important;
+            margin-bottom: 4px !important;
+        }
+
         /* Botões padronizados gerais */
         .stButton>button {
             border-radius: 10px;
@@ -82,20 +91,10 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* OLHO DE SENHA DO LOGIN */
-        div[data-baseweb="input"] button, div[data-testid="stTextInput"] button {
-            background-color: #334155 !important;
-            border: 1px solid #475569 !important;
-            border-top-right-radius: 8px !important;
-            border-bottom-right-radius: 8px !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-        }
-        
-        div[data-baseweb="input"] button svg, div[data-testid="stTextInput"] button svg {
-            fill: #FFFFFF !important;
-            color: #FFFFFF !important;
-            opacity: 1 !important;
+        /* Cartão de Métrica (Horas Extras) */
+        div[data-testid="stMetricValue"] {
+            color: #38BDF8 !important;
+            font-weight: bold !important;
         }
 
         /* Sidebar */
@@ -111,12 +110,6 @@ st.markdown(
             background-color: #334155 !important;
             color: #FFFFFF !important;
             border: 1px solid #475569 !important;
-        }
-        
-        section[data-testid="stSidebar"] .stButton>button:hover {
-            background-color: #DC2626 !important;
-            color: #FFFFFF !important;
-            border-color: #EF4444 !important;
         }
 
         /* Seta da Sidebar */
@@ -148,17 +141,64 @@ pwa_code = """
 st.markdown(pwa_code, unsafe_allow_html=True)
 
 
-# --- FUNÇÃO AUXILIAR: CAMPO DE DATA EM HTML5 NATIVO (100% VISÍVEL NO CELULAR) ---
-def seletor_data_html5(label: str, key: str):
-  st.markdown(
-      f"<label style='color: #F8FAFC; font-weight: bold; font-size: 0.85rem;'>"
-      f"{label}</label>",
-      unsafe_allow_html=True,
-  )
-  val_str = st.text_input(
-      label, key=f"input_{key}", label_visibility="collapsed"
-  )
+# --- FUNÇÕES AUXILIARES DE CÁLCULO DE HORAS ---
+def parse_horario(horario_str):
+  """Converte string de horário (HH:MM ou HH:MM:SS) em timedelta a partir da meia-noite."""
+  if not horario_str or pd.isna(horario_str):
+    return None
+  try:
+    partes = str(horario_str).split(":")
+    h = int(partes[0])
+    m = int(partes[1])
+    s = int(partes[2].split(".")[0]) if len(partes) > 2 else 0
+    return timedelta(hours=h, minutes=m, seconds=s)
+  except Exception:
+    return None
 
+
+def calcular_horas_linha(row):
+  """Calcula total trabalhado e hora extra para cada dia (jornada padrão de 8h líquidas)."""
+  ent = parse_horario(row.get("ENTRADA"))
+  s_alm = parse_horario(row.get("SAÍDA ALMOÇO"))
+  r_alm = parse_horario(row.get("RETORNO ALMOÇO"))
+  sai = parse_horario(row.get("SAÍDA"))
+
+  if not ent or not sai:
+    return "00:00", "00:00", 0.0, 0.0
+
+  if s_alm and r_alm and r_alm > s_alm:
+    tempo_almoco = r_alm - s_alm
+  else:
+    tempo_almoco = timedelta(0)
+
+  total_bruto = sai - ent
+  total_liquido = total_bruto - tempo_almoco
+
+  if total_liquido.total_seconds() < 0:
+    total_liquido = timedelta(0)
+
+  # Jornada padrão: 8 horas líquidas diárias (08:00 - 17:00 c/ 1h de almoço)
+  jornada_padrao = timedelta(hours=8)
+
+  if total_liquido > jornada_padrao:
+    he = total_liquido - jornada_padrao
+  else:
+    he = timedelta(0)
+
+  def format_td(td):
+    tot_seg = int(td.total_seconds())
+    horas = tot_seg // 3600
+    minutos = (tot_seg % 3600) // 60
+    return f"{horas:02d}:{minutos:02d}"
+
+  seg_trab = total_liquido.total_seconds()
+  seg_he = he.total_seconds()
+
+  return format_td(total_liquido), format_td(he), seg_trab, seg_he
+
+
+def seletor_data_html5(label: str, key: str):
+  val_str = st.text_input(label, key=f"input_{key}", placeholder="DD/MM/AAAA")
   dt_retorno = None
   if val_str:
     try:
@@ -168,7 +208,6 @@ def seletor_data_html5(label: str, key: str):
         dt_retorno = datetime.strptime(val_str.strip(), "%d/%m/%Y").date()
       except ValueError:
         st.caption("⚠️ Formato aceito: YYYY-MM-DD ou DD/MM/AAAA")
-
   return dt_retorno
 
 
@@ -223,7 +262,7 @@ class TelegramNotifier:
 telegram = TelegramNotifier(TELEGRAM_BOT_TOKEN)
 
 # ==========================================
-# CONTROLE DE SESSÃO E LOGIN
+# CONTROLE DE SESSÃO E LOGIN (COM VALIDAÇÃO OBRIGATÓRIA DE SENHA)
 # ==========================================
 if "autenticado" not in st.session_state:
   st.session_state.autenticado = False
@@ -233,7 +272,7 @@ if "autenticado" not in st.session_state:
 
 if not st.session_state.autenticado:
   st.title("🔐 LRVIX - ACESSO AO SISTEMA")
-  st.write("Insira seu CPF cadastrado na tabela de Técnicos para entrar.")
+  st.write("Insira seu CPF e Senha para entrar.")
 
   with st.form("form_login"):
     cpf_input = st.text_input("CPF (Somente números)")
@@ -243,31 +282,42 @@ if not st.session_state.autenticado:
     )
 
     if botao_login:
-      if not cpf_input:
+      if not cpf_input or not cpf_input.strip():
         st.warning("⚠️ Por favor, informe o seu CPF.")
+      elif not senha_input or not senha_input.strip():
+        st.warning("⚠️ Por favor, informe a sua Senha.")
       else:
         try:
           cpf_limpo = "".join(filter(str.isdigit, cpf_input)).zfill(11)
+          senha_limpa = senha_input.strip()
+
+          # Consulta o usuário pelo CPF no banco de dados
           res_login = (
               supabase.table("TECNICOS")
-              .select("nome, cpf, email, telefone")
+              .select("nome, cpf, email, telefone, senha")
               .eq("cpf", cpf_limpo)
               .execute()
           )
 
           if res_login.data:
             usuario = res_login.data[0]
-            st.session_state.autenticado = True
-            st.session_state.usuario_nome = usuario["nome"]
-            st.session_state.usuario_cpf = str(usuario["cpf"]).zfill(11)
+            senha_cadastrada = str(usuario.get("senha") or "").strip()
 
-            if st.session_state.usuario_cpf == "08429076700":
-              st.session_state.usuario_perfil = "gestor"
+            # Valida se a senha digitada confere com a cadastrada na tabela
+            if senha_cadastrada and senha_limpa == senha_cadastrada:
+              st.session_state.autenticado = True
+              st.session_state.usuario_nome = usuario["nome"]
+              st.session_state.usuario_cpf = str(usuario["cpf"]).zfill(11)
+
+              if st.session_state.usuario_cpf == "08429076700":
+                st.session_state.usuario_perfil = "gestor"
+              else:
+                st.session_state.usuario_perfil = "tecnico"
+
+              st.success(f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!")
+              st.rerun()
             else:
-              st.session_state.usuario_perfil = "tecnico"
-
-            st.success(f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!")
-            st.rerun()
+              st.error("❌ Senha incorreta. Tente novamente.")
           else:
             st.error("❌ CPF não encontrado na tabela Técnicos.")
         except Exception as e:
@@ -275,11 +325,16 @@ if not st.session_state.autenticado:
   st.stop()
 
 # ==========================================
-# APLICAÇÃO PRINCIPAL & MENU NA BARRA LATERAL OCULTA
+# APLICAÇÃO PRINCIPAL & MENU
 # ==========================================
 
+# A aba "Banco de Horas" fica disponível exclusivamente para o perfil gestor
 if st.session_state.usuario_perfil == "gestor":
-  opcoes_menu = ["Gestão de Lançamentos", "📅 Calendário de Folgas"]
+  opcoes_menu = [
+      "Gestão de Lançamentos",
+      "🏦 Banco de Horas",
+      "📅 Calendário de Folgas",
+  ]
 else:
   opcoes_menu = [
       "Registrar Ponto",
@@ -508,7 +563,7 @@ if menu == "Registrar Ponto":
     st.error(f"Erro ao registrar ponto: {e}")
 
 # ==========================================
-# ABA 2: GESTÃO DE LANÇAMENTOS
+# ABA 2: GESTÃO DE LANÇAMENTOS E HORAS EXTRAS
 # ==========================================
 elif menu == "Gestão de Lançamentos":
   st.title("🛠️ Gestão de Lançamentos e Espelho de Ponto")
@@ -547,10 +602,10 @@ elif menu == "Gestão de Lançamentos":
       with col_f1:
         if st.session_state.usuario_perfil == "tecnico":
           filtro_tecnico = st.session_state.usuario_nome
-          st.text_input("Técnico", value=filtro_tecnico, disabled=True)
+          st.text_input("TÉCNICO", value=filtro_tecnico, disabled=True)
         else:
           lista_tecnicos = sorted(list(df["nome_tecnico"].unique()))
-          filtro_tecnico = st.selectbox("Técnico", lista_tecnicos)
+          filtro_tecnico = st.selectbox("TÉCNICO", lista_tecnicos)
 
       with col_f2:
         filtro_data_inicial = seletor_data_html5("DATA INICIAL", "dt_ini_gestao")
@@ -571,6 +626,8 @@ elif menu == "Gestão de Lançamentos":
       if df.empty:
         st.warning("⚠ Nenhum registro encontrado para os filtros selecionados.")
       else:
+        df = df.sort_values(by="data", ascending=True)
+
         tabela_espelho = df[
             ["data", "entrada", "saida_almoco", "retorno_almoco", "saida"]
         ].copy()
@@ -581,10 +638,46 @@ elif menu == "Gestão de Lançamentos":
             "RETORNO ALMOÇO",
             "SAÍDA",
         ]
+
         tabela_espelho["DATA"] = pd.to_datetime(
             tabela_espelho["DATA"]
         ).dt.strftime("%d/%m/%Y")
         tabela_espelho = tabela_espelho.fillna("")
+
+        # Cálculo automático de Total Trabalhado e Horas Extras por dia
+        totais_trab = []
+        totais_he = []
+        seg_trab_acum = 0
+        seg_he_acum = 0
+
+        for _, r in tabela_espelho.iterrows():
+          txt_trab, txt_he, s_trab, s_he = calcular_horas_linha(r)
+          totais_trab.append(txt_trab)
+          totais_he.append(txt_he)
+          seg_trab_acum += s_trab
+          seg_he_acum += s_he
+
+        tabela_espelho["TOTAL TRABALHADO"] = totais_trab
+        tabela_espelho["HORA EXTRA (EXCEDE 8H)"] = totais_he
+
+        # Exibe métricas consolidadas do período filtrado
+        tot_h_trab = int(seg_trab_acum // 3600)
+        tot_m_trab = int((seg_trab_acum % 3600) // 60)
+
+        tot_h_he = int(seg_he_acum // 3600)
+        tot_m_he = int((seg_he_acum % 3600) // 60)
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+          st.metric("📋 Total de Dias", f"{len(tabela_espelho)} dias")
+        with col_m2:
+          st.metric(
+              "⏱️ Horas Trabalhadas", f"{tot_h_trab:02d}h {tot_m_trab:02d}m"
+          )
+        with col_m3:
+          st.metric("🔥 Total Horas Extras", f"{tot_h_he:02d}h {tot_m_he:02d}m")
+
+        st.markdown("---")
 
         cpf_tecnico_alvo = mapa_cpf_por_nome.get(filtro_tecnico)
         if (
@@ -630,7 +723,6 @@ elif menu == "Gestão de Lançamentos":
         pode_editar = sou_gestor or edicao_ativa_tecnico
 
         if sou_gestor:
-          st.markdown("---")
           st.subheader("⚙ Painel de Controle (Gestor)")
 
           if edicao_ativa_tecnico:
@@ -726,7 +818,145 @@ elif menu == "Gestão de Lançamentos":
     st.error(f"Erro ao carregar dados: {e}")
 
 # ==========================================
-# ABA 3: CALENDÁRIO DE FOLGAS
+# ABA 3: BANCO DE HORAS (Apenas Gestor/Administrador)
+# ==========================================
+elif menu == "🏦 Banco de Horas":
+  st.title("🏦 Banco de Horas da Equipe")
+  st.markdown("Painel consolidado do saldo de horas extras para o gestor.")
+
+  if st.session_state.usuario_perfil != "gestor":
+    st.error("⛔ Acesso negado. Esta página é restrita a administradores.")
+    st.stop()
+
+  try:
+    res_ponto = supabase.table("CONTROLE_PONTO").select("*").execute()
+    dados_ponto = res_ponto.data or []
+
+    res_tecnicos = (
+        supabase.table("TECNICOS").select("cpf, nome").execute()
+    )
+    mapa_tecnicos = {}
+    for t in res_tecnicos.data or []:
+      if t.get("cpf") and t.get("nome"):
+        cpf_limpo = "".join(filter(str.isdigit, str(t["cpf"]))).zfill(11)
+        mapa_tecnicos[cpf_limpo] = t["nome"]
+
+    st.markdown("---")
+    st.subheader("🔍 Filtro de Período")
+    col_bh1, col_bh2 = st.columns(2)
+    with col_bh1:
+      dt_ini_bh = seletor_data_html5("DATA INICIAL", "dt_ini_bh")
+    with col_bh2:
+      dt_fim_bh = seletor_data_html5("DATA FINAL", "dt_fim_bh")
+
+    if dados_ponto:
+      df_bh = pd.DataFrame(dados_ponto)
+      df_bh["data_dt"] = pd.to_datetime(df_bh["data"]).dt.date
+
+      if dt_ini_bh:
+        df_bh = df_bh[df_bh["data_dt"] >= dt_ini_bh]
+      if dt_fim_bh:
+        df_bh = df_bh[df_bh["data_dt"] <= dt_fim_bh]
+
+      if df_bh.empty:
+        st.warning("⚠ Nenhum registro de ponto no período selecionado.")
+      else:
+        df_bh["cpf_clean"] = df_bh["cpf"].apply(
+            lambda x: "".join(filter(str.isdigit, str(x))).zfill(11)
+        )
+        df_bh["TÉCNICO"] = df_bh["cpf_clean"].apply(
+            lambda x: mapa_tecnicos.get(x, "Desconhecido")
+        )
+
+        df_bh_calc = df_bh.rename(
+            columns={
+                "entrada": "ENTRADA",
+                "saida_almoco": "SAÍDA ALMOÇO",
+                "retorno_almoco": "RETORNO ALMOÇO",
+                "saida": "SAÍDA",
+            }
+        )
+
+        resumo_banco = []
+        for tec_nome, group in df_bh_calc.groupby("TÉCNICO"):
+          tot_seg_trab = 0
+          tot_seg_he = 0
+          dias_registrados = len(group)
+
+          for _, row in group.iterrows():
+            _, _, s_trab, s_he = calcular_horas_linha(row)
+            tot_seg_trab += s_trab
+            tot_seg_he += s_he
+
+          h_trab = int(tot_seg_trab // 3600)
+          m_trab = int((tot_seg_trab % 3600) // 60)
+
+          h_he = int(tot_seg_he // 3600)
+          m_he = int((tot_seg_he % 3600) // 60)
+
+          resumo_banco.append({
+              "TÉCNICO": tec_nome,
+              "DIAS COM PONTO": dias_registrados,
+              "TOTAL TRABALHADO": f"{h_trab:02d}h {m_trab:02d}m",
+              "SALDO HORA EXTRA": f"{h_he:02d}h {m_he:02d}m",
+              "_seg_he": tot_seg_he,
+          })
+
+        df_resumo_bh = pd.DataFrame(resumo_banco).sort_values(
+            by="_seg_he", ascending=False
+        )
+        df_resumo_bh = df_resumo_bh.drop(columns=["_seg_he"])
+
+        st.markdown("---")
+        st.subheader("📊 Consolidação por Técnico")
+        st.dataframe(df_resumo_bh, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.subheader("🔎 Detalhamento por Técnico")
+        tec_detalhe = st.selectbox(
+            "Selecione um técnico para ver o extrato diário",
+            options=sorted(list(df_bh_calc["TÉCNICO"].unique())),
+        )
+
+        if tec_detalhe:
+          df_tec = df_bh_calc[df_bh_calc["TÉCNICO"] == tec_detalhe].sort_values(
+              by="data", ascending=True
+          )
+          df_tec_exib = df_tec[
+              ["data", "ENTRADA", "SAÍDA ALMOÇO", "RETORNO ALMOÇO", "SAÍDA"]
+          ].copy()
+          df_tec_exib["DATA"] = pd.to_datetime(
+              df_tec_exib["data"]
+          ).dt.strftime("%d/%m/%Y")
+
+          totais_trab_det = []
+          totais_he_det = []
+          for _, r in df_tec_exib.iterrows():
+            txt_t, txt_h, _, _ = calcular_horas_linha(r)
+            totais_trab_det.append(txt_t)
+            totais_he_det.append(txt_h)
+
+          df_tec_exib["TOTAL TRABALHADO"] = totais_trab_det
+          df_tec_exib["HORA EXTRA"] = totais_he_det
+          df_tec_exib = df_tec_exib[[
+              "DATA",
+              "ENTRADA",
+              "SAÍDA ALMOÇO",
+              "RETORNO ALMOÇO",
+              "SAÍDA",
+              "TOTAL TRABALHADO",
+              "HORA EXTRA",
+          ]].fillna("")
+
+          st.dataframe(df_tec_exib, use_container_width=True, hide_index=True)
+    else:
+      st.info("Nenhum lançamento de ponto encontrado para processar o banco de horas.")
+
+  except Exception as e:
+    st.error(f"Erro ao carregar banco de horas: {e}")
+
+# ==========================================
+# ABA 4: CALENDÁRIO DE FOLGAS
 # ==========================================
 elif menu == "📅 Calendário de Folgas":
   st.title("📅 Calendário de Folgas dos Técnicos")
@@ -758,7 +988,7 @@ elif menu == "📅 Calendário de Folgas":
         col_g1, col_g2, col_g3 = st.columns(3)
         with col_g1:
           tec_selecionado = st.selectbox(
-              "Técnico", options=sorted(list(mapa_cpf_por_nome.keys()))
+              "TÉCNICO", options=sorted(list(mapa_cpf_por_nome.keys()))
           )
         with col_g2:
           data_folga = seletor_data_html5("DATA DA FOLGA", "dt_cad_folga")
