@@ -1,10 +1,16 @@
 from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
 import logging
+import os
+import math
 import pandas as pd
 import requests
 import streamlit as st
 from supabase import create_client
+try:
+  from streamlit_geolocation import streamlit_geolocation
+except ImportError:
+  streamlit_geolocation = None
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -14,124 +20,125 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
-st.markdown(
-    """
-    <style>
-        /* Força todos os textos da aplicação em letras maiúsculas */
-        html, body, [class*="css"] {
-            text-transform: uppercase !important;
-        }
+# --- IDENTIDADE VISUAL LRVIX GESTÃO | PALETA EXTRAÍDA DO APP DE GESTÃO TÉCNICA ---
+st.markdown("""
+<style>
+:root{color-scheme:dark;--lrvix-bg:#081629;--lrvix-side:#0D2340;--lrvix-panel:#102A49;--lrvix-field:#122C4B;--lrvix-line:#315477;--lrvix-text:#F7FAFF;--lrvix-muted:#B9CDE4;--lrvix-accent:#69B5F4;}
+html,body,.stApp,[data-testid="stAppViewContainer"]{background:#081629!important;color:#F7FAFF!important;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;}
+[data-testid="stHeader"]{background:#081629!important;}
+.block-container{max-width:1200px!important;padding-top:2rem!important;padding-bottom:2rem!important;}
+h1,h2,h3,h4,h5,h6,[data-testid="stMarkdownContainer"] strong{color:#F7FAFF!important;}
+p,label,[data-testid="stMarkdownContainer"]{color:#F7FAFF;}
+[data-testid="stCaptionContainer"],.stCaption,[data-testid="stCaptionContainer"] p{color:#B9CDE4!important;}
+[data-testid="stSidebar"],[data-testid="stSidebar"]>div{background:#0D2340!important;color:#F7FAFF!important;}
+[data-testid="stSidebar"] p,[data-testid="stSidebar"] span,[data-testid="stSidebar"] label{color:#F7FAFF!important;}
+[data-testid="stSidebar"] div.stButton>button{background:#102B4B!important;border-color:#315D8D!important;text-align:left!important;}
+[data-testid="stSidebar"] div.stButton>button:hover{background:#1A4777!important;}
+div.stButton>button,div.stDownloadButton>button,[data-testid="stFormSubmitButton"] button{background:#12345A!important;color:#F7FAFF!important;border:1px solid #315D8D!important;border-radius:9px!important;font-weight:600!important;min-height:42px;transition:background .15s ease,border-color .15s ease;}
+div.stButton>button:hover,div.stDownloadButton>button:hover,[data-testid="stFormSubmitButton"] button:hover{background:#1D568B!important;border-color:#69B5F4!important;}
+button[kind="primary"],button[data-testid="stBaseButton-primary"]{background:#20558B!important;border-color:#69B5F4!important;color:white!important;}
+[data-testid="stForm"],[data-testid="stExpander"]{background:#0E2543!important;border:1px solid #315477!important;border-radius:10px!important;}
+[data-testid="stForm"]{padding:1.25rem!important;}
+div[data-baseweb="input"]>div,div[data-baseweb="select"]>div,div[data-baseweb="textarea"]>div,[data-testid="stDateInput"] div[data-baseweb="input"]>div{background:#122C4B!important;color:#F7FAFF!important;border-color:#41678E!important;border-radius:8px!important;}
+input,textarea,[data-baseweb="select"] input,[data-baseweb="select"] span{color:#F7FAFF!important;-webkit-text-fill-color:#F7FAFF!important;}
+input::placeholder,textarea::placeholder{color:#AFC5DD!important;}
+[data-baseweb="popover"] [role="listbox"],[data-baseweb="popover"] ul,[data-baseweb="menu"]{background:#132F51!important;color:#F7FAFF!important;}
+[data-baseweb="popover"] li{color:#F7FAFF!important;}
+[data-baseweb="popover"] li:hover{background:#23517E!important;}
+[data-testid="stMetric"]{background:#102A49!important;border:1px solid #315477!important;border-radius:12px!important;padding:14px 18px!important;box-shadow:0 4px 14px rgba(0,0,0,.14);}
+[data-testid="stMetricLabel"],[data-testid="stMetricLabel"] p{color:#B9DEFF!important;}
+[data-testid="stMetricValue"],[data-testid="stMetricValue"] div{color:#E9F5FF!important;}
+[data-testid="stDataFrame"],[data-testid="stDataEditor"],[data-testid="stTable"]{border:1px solid #315477!important;border-radius:10px!important;overflow:hidden;}
+.stTabs [data-baseweb="tab-list"]{border-bottom:1px solid #315477;gap:8px;}
+.stTabs [data-baseweb="tab"]{color:#C4DDF5!important;font-weight:600;}
+.stTabs [aria-selected="true"]{color:white!important;border-bottom:3px solid #69B5F4!important;}
+[data-testid="stAlert"]{border-radius:10px!important;}
+hr{border-color:#315477!important;}
+[data-testid="collapsedControl"]{background:#102B4B!important;border:1px solid #315D8D!important;border-radius:8px!important;}
+/* Componentes idênticos à identidade do dashboard financeiro LRVIX Gestão */
+.fin-hero,.lrvix-hero{background:linear-gradient(115deg,#102C50,#20558B)!important;border:1px solid #4979AC!important;color:white!important;padding:24px 28px;border-radius:16px;margin:10px 0 20px;}
+.fin-hero h2,.lrvix-hero h2{color:#FFFFFF!important;margin:0;font-size:28px;}
+.fin-hero p,.lrvix-hero p{color:#C5DDF5!important;margin:6px 0 0;}
+.fin-card{background:linear-gradient(140deg,#102A49,#183D66)!important;border:1px solid #416B96!important;border-radius:13px;padding:16px 18px;min-height:112px;margin-bottom:12px;}
+.fin-label{font-size:13px;color:#C2DBF5!important;font-weight:650;}
+.fin-value{font-size:25px;font-weight:800;color:#FFFFFF!important;margin-top:10px;}
+.fin-note{font-size:12px;color:#AFC9E5!important;margin-top:5px;}
+.fin-section{background:linear-gradient(90deg,#173E6A,#102A49)!important;color:#F7FAFF!important;border-left:5px solid #69B5F4!important;border-radius:8px;padding:12px 16px;font-size:19px;font-weight:750;margin:22px 0 15px;}
+.lrvix-brand{display:flex;align-items:center;gap:13px;margin-bottom:1.2rem;}
+.lrvix-brand-mark{background:linear-gradient(115deg,#102C50,#20558B);border:1px solid #4979AC;color:white;padding:12px 14px;border-radius:12px;font-weight:850;}
+.lrvix-brand-name{font-size:1.2rem;font-weight:800;color:#F7FAFF;}
+.lrvix-brand-sub{color:#B9CDE4;font-size:.79rem;}
+.lrvix-eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.12em;color:#B9DEFF;margin-bottom:.5rem;}
+.lrvix-login-head{text-align:center;padding:2rem 0 1.1rem;}.lrvix-login-head .lrvix-brand-mark{display:inline-block;margin-bottom:15px;font-size:1.45rem;}
+.lrvix-login-head h1{color:#F7FAFF!important;}.lrvix-login-head p{color:#B9CDE4!important;}
+.lrvix-step{background:#0E2543;border:1px solid #315477;border-radius:10px;padding:16px 18px;margin:12px 0;color:#C2DBF5;}.lrvix-step strong{color:white;}
+@media(max-width:700px){.block-container{padding:1rem .8rem 2rem!important;}.fin-hero,.lrvix-hero{padding:20px 18px;}.fin-hero h2,.lrvix-hero h2{font-size:22px!important;}}
 
-        /* Fundo geral e da aplicação inteira */
-        .stApp, body, html {
-            background-color: #1E293B !important;
-            color: #F8FAFC !important;
-        }
-
-        /* Header e Container */
-        header[data-testid="stHeader"] {
-            background-color: #1E293B !important;
-        }
-        
-        .block-container {
-            background-color: #1E293B !important;
-            padding-top: 1.5rem !important;
-            padding-bottom: 2rem !important;
-            max-width: 1100px !important;
-            margin: 0 auto !important;
-            color: #F8FAFC !important;
-        }
-
-        /* Títulos e textos gerais */
-        h1, h2, h3, h4, h5, h6, span, p, label {
-            color: #F8FAFC !important;
-        }
-
-        /* PADRONIZAÇÃO DA ALTURA E MARGEM DOS RÓTULOS (LABELS) */
-        div[data-testid="stForm"] label,
-        div[data-testid="column"] label,
-        .stTextInput label, .stSelectbox label {
-            font-weight: 700 !important;
-            color: #F8FAFC !important;
-            font-size: 0.85rem !important;
-            margin-bottom: 4px !important;
-        }
-
-        /* Botões padronizados gerais */
-        .stButton>button {
-            border-radius: 10px;
-            font-weight: 600;
-            padding: 0.5rem 1rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
-            transition: all 0.2s ease-in-out;
-        }
-
-        /* Botão Primário */
-        button[kind="primary"] {
-            background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important;
-            color: white !important;
-            border: none;
-        }
-
-        /* CAMPOS DE TEXTO E SELEÇÃO CONVENCIONAIS */
-        .stTextInput input, .stSelectbox input, div[data-baseweb="select"] span {
-            color: #0F172A !important;
-            background-color: #FFFFFF !important;
-            font-weight: 700 !important;
-            -webkit-text-fill-color: #0F172A !important;
-            opacity: 1 !important;
-        }
-
-        .stTextInput input:disabled, .stSelectbox input:disabled {
-            color: #0F172A !important;
-            background-color: #F1F5F9 !important;
-            font-weight: 700 !important;
-            -webkit-text-fill-color: #0F172A !important;
-            opacity: 1 !important;
-        }
-
-        /* Cartão de Métrica (Horas Extras) */
-        div[data-testid="stMetricValue"] {
-            color: #38BDF8 !important;
-            font-weight: bold !important;
-        }
-
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background-color: #0F172A !important;
-            color: #FFFFFF !important;
-        }
-        section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] span {
-            color: #F1F5F9 !important;
-        }
-
-        section[data-testid="stSidebar"] .stButton>button {
-            background-color: #334155 !important;
-            color: #FFFFFF !important;
-            border: 1px solid #475569 !important;
-        }
-
-        /* Seta da Sidebar */
-        [data-testid="collapsedControl"] {
-            display: block !important;
-            background-color: #EF4444 !important;
-            border-radius: 8px !important;
-            padding: 6px 10px !important;
-            margin: 10px !important;
-            box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.4) !important;
-        }
-
-        [data-testid="collapsedControl"] svg {
-            fill: #FFFFFF !important;
-            color: #FFFFFF !important;
-            width: 22px !important;
-            height: 22px !important;
-        }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
+/* LRVIX PONTO | PADRONIZACAO VISUAL PREMIUM — APENAS APRESENTACAO */
+/* Nao altera os valores enviados aos formularios, Supabase ou Telegram. */
+[data-testid="stSidebar"] div.stButton > button,
+[data-testid="stSidebar"] div.stButton > button p,
+div.stButton > button, div.stButton > button p,
+div.stDownloadButton > button, div.stDownloadButton > button p,
+[data-testid="stFormSubmitButton"] button,
+[data-testid="stFormSubmitButton"] button p {
+  text-transform:uppercase!important;
+  text-align:center!important;
+  justify-content:center!important;
+  align-items:center!important;
+  letter-spacing:.045em!important;
+  font-weight:700!important;
+}
+[data-testid="stSidebar"] div.stButton > button {min-height:44px!important;width:100%!important;}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+  text-transform:uppercase!important;text-align:center!important;
+}
+/* Titulos, rotulos, metricas e paineis */
+h1,h2,h3,h4,h5,h6,
+[data-testid="stHeadingWithActionElements"],
+[data-testid="stWidgetLabel"] p,
+[data-testid="stMetricLabel"] p,
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] div,
+.fin-label,.fin-value,.fin-note,.fin-section,
+.lrvix-eyebrow,.lrvix-brand-name,.lrvix-brand-sub,
+.lrvix-hero h2,.lrvix-hero p,.fin-hero h2,.fin-hero p,
+.lrvix-login-head h1,.lrvix-login-head p {
+  text-transform:uppercase!important;text-align:center!important;
+}
+[data-testid="stMetric"] {text-align:center!important;}
+[data-testid="stMetric"] > div,
+[data-testid="stMetricLabel"],
+[data-testid="stMetricValue"] {justify-content:center!important;align-items:center!important;}
+[data-testid="stWidgetLabel"] {justify-content:center!important;text-align:center!important;}
+/* Campos: centraliza exibicao, mas nao altera o dado digitado (senha, CPF, datas). */
+[data-testid="stTextInput"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stNumberInput"] input,
+[data-baseweb="select"] [role="combobox"],
+[data-baseweb="select"] [role="combobox"] span {
+  text-align:center!important;
+}
+/* O texto exibido nos seletores fica em caixa alta, sem alterar o valor real. */
+[data-baseweb="select"] [role="combobox"],
+[data-baseweb="select"] [role="combobox"] span,
+[data-baseweb="tab"],
+[data-testid="stAlert"] p,
+[data-testid="stCaptionContainer"] p,
+.lrvix-install-link {text-transform:uppercase!important;}
+.lrvix-install-link {letter-spacing:.045em!important;}
+.fin-card,.fin-section,.lrvix-step,.lrvix-brand {text-align:center!important;}
+.lrvix-brand {justify-content:center!important;}
+/* Cabecalhos de tabelas Streamlit (quando renderizados em DOM). */
+[data-testid="stTable"] th {text-align:center!important;text-transform:uppercase!important;}
+@media(max-width:700px){
+ [data-testid="stSidebar"] div.stButton > button {font-size:12px!important;}
+ h1{font-size:1.7rem!important;}
+}
+</style>
+""",unsafe_allow_html=True)
 
 pwa_code = """
 <link rel="manifest" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/manifest.json">
@@ -139,6 +146,220 @@ pwa_code = """
 <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/mmagre-droid/lrvix-ponto/main/icone.png">
 """
 st.markdown(pwa_code, unsafe_allow_html=True)
+
+
+# --- CERCA GEOGRÁFICA: CONFIGURAR NO STREAMLIT SECRETS OU AMBIENTE ---
+def configuracao_geofence():
+  def valor(chave):
+    ambiente = os.environ.get(chave)
+    if ambiente is not None:
+      return ambiente
+    try:
+      return st.secrets.get(chave)
+    except (FileNotFoundError, KeyError):
+      return None
+
+  try:
+    lat = float(valor("PONTO_LATITUDE"))
+    lon = float(valor("PONTO_LONGITUDE"))
+    raio = float(valor("PONTO_RAIO_METROS"))
+    precisao = float(valor("PONTO_PRECISAO_MAX_METROS") or 100)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180 and 0 < raio <= 100000 and 0 < precisao <= 10000):
+      raise ValueError("Coordenadas, raio ou precisão inválidos")
+    return lat, lon, raio, precisao
+  except (TypeError, ValueError):
+    return None
+
+
+def distancia_metros(lat1, lon1, lat2, lon2):
+  r = 6371000.0
+  a1, a2 = math.radians(lat1), math.radians(lat2)
+  da = math.radians(lat2 - lat1)
+  dl = math.radians(lon2 - lon1)
+  h = math.sin(da / 2) ** 2 + math.cos(a1) * math.cos(a2) * math.sin(dl / 2) ** 2
+  return 2 * r * math.asin(min(1.0, math.sqrt(h)))
+
+
+def validar_geolocalizacao(posicao, configuracao):
+  if not configuracao:
+    return False, "ZONA DE PONTO NÃO CONFIGURADA. CONTATE O ADMINISTRADOR."
+  if not isinstance(posicao, dict):
+    return False, "AUTORIZE A LOCALIZAÇÃO NO NAVEGADOR PARA REGISTRAR O PONTO."
+  try:
+    lat, lon = float(posicao.get("latitude")), float(posicao.get("longitude"))
+    precisao = float(posicao.get("accuracy"))
+    if not all(map(math.isfinite, (lat, lon, precisao))):
+      raise ValueError("Coordenadas inválidas")
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or precisao < 0:
+      raise ValueError("Coordenadas inválidas")
+  except (ValueError, TypeError):
+    return False, "LOCALIZAÇÃO INDISPONÍVEL. ATIVE O GPS E TENTE NOVAMENTE."
+  centro_lat, centro_lon, raio, precisao_max = configuracao
+  if precisao > precisao_max:
+    return False, f"PRECISÃO INSUFICIENTE (±{precisao:.0f} M). AGUARDE O GPS MELHORAR."
+  distancia = distancia_metros(lat, lon, centro_lat, centro_lon)
+  # Margem conservadora: a área de incerteza deve estar dentro da zona.
+  if distancia + precisao > raio:
+    return False, f"FORA DA ZONA AUTORIZADA OU PRÓXIMO AO LIMITE (DISTÂNCIA: {distancia:.0f} M; RAIO: {raio:.0f} M)."
+  return True, f"LOCALIZAÇÃO VALIDADA · {distancia:.0f} M DO CENTRO · RAIO {raio:.0f} M"
+
+
+# --- MODELO MISTO: REGRAS PERSISTIDAS NO SUPABASE ---
+def cliente_geo():
+  """Cliente exclusivamente servidor; a chave de serviço nunca vai ao navegador."""
+  try:
+    chave = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+  except (FileNotFoundError, KeyError):
+    return None
+  if not chave or not url:
+    return None
+  return create_client(str(url), str(chave))
+
+
+def geo_dados():
+  db = cliente_geo()
+  if db is None:
+    raise RuntimeError("CONFIGURE SUPABASE_URL E SUPABASE_SERVICE_ROLE_KEY NOS SECRETS.")
+  locais = db.table("PONTO_LOCAIS").select("*").order("nome").execute().data or []
+  permissoes = db.table("PONTO_PERMISSOES").select("*").execute().data or []
+  return db, locais, permissoes
+
+
+def autorizacao_mista(cpf, posicao, locais, permissoes):
+  """Bloqueio individual prevalece; liberação temporária exige local ativo."""
+  if not isinstance(posicao, dict):
+    return False, "AUTORIZE O GPS PARA REGISTRAR O PONTO."
+  try:
+    lat = float(posicao["latitude"])
+    lon = float(posicao["longitude"])
+    accuracy = float(posicao["accuracy"])
+    if not all(map(math.isfinite, [lat, lon, accuracy])) or not (-90 <= lat <= 90 and -180 <= lon <= 180) or accuracy < 0:
+      raise ValueError()
+  except (ValueError, TypeError, KeyError):
+    return False, "GPS INVÁLIDO OU INDISPONÍVEL."
+  cpf = str(cpf).zfill(11)
+  agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
+  regras = [r for r in permissoes if str(r.get("cpf", "")).zfill(11) == cpf]
+  if any(r.get("tipo") == "BLOQUEIO" and r.get("ativo") for r in regras):
+    return False, "TÉCNICO BLOQUEADO PELO GESTOR."
+  for local in locais:
+    if not local.get("ativo"):
+      continue
+    id_local = local["id"]
+    permitido = bool(local.get("liberado_geral"))
+    for r in regras:
+      if not r.get("ativo") or r.get("local_id") != id_local:
+        continue
+      if r.get("tipo") == "LOCAL":
+        permitido = True
+      if r.get("tipo") == "TEMPORARIA" and r.get("expira_em"):
+        try:
+          expira = datetime.fromisoformat(str(r["expira_em"]).replace("Z", "+00:00"))
+          if expira.tzinfo is not None and agora <= expira:
+            permitido = True
+        except ValueError:
+          pass
+    if not permitido:
+      continue
+    raio = float(local["raio_metros"])
+    precisao_max = float(local["precisao_max_metros"])
+    if accuracy > precisao_max:
+      continue
+    distancia = distancia_metros(lat, lon, float(local["latitude"]), float(local["longitude"]))
+    if distancia + accuracy <= raio:
+      return True, f"LOCAL AUTORIZADO: {local['nome']} · DISTÂNCIA {distancia:.0f} M"
+  return False, "FORA DAS ZONAS PERMITIDAS OU SEM AUTORIZAÇÃO PARA ESTE LOCAL."
+
+
+def painel_localizacoes():
+  st.markdown('<div class="lrvix-hero"><h2>📍 GESTÃO DE LOCALIZAÇÕES</h2><p>CONTROLE MISTO DE ZONAS E PERMISSÕES</p></div>', unsafe_allow_html=True)
+  try:
+    db, locais, permissoes = geo_dados()
+    tecnicos = db.table("TECNICOS").select("cpf,nome").order("nome").execute().data or []
+  except Exception as exc:
+    st.error(f"NÃO FOI POSSÍVEL CARREGAR A GESTÃO DE LOCALIZAÇÕES: {exc}")
+    return
+  c1,c2,c3 = st.columns(3)
+  c1.metric("LOCAIS CADASTRADOS", len(locais))
+  c2.metric("LOCAIS ATIVOS", sum(bool(x.get("ativo")) for x in locais))
+  c3.metric("REGRAS INDIVIDUAIS", len(permissoes))
+  st.markdown('<div class="fin-section">CADASTRAR LOCAL AUTORIZADO</div>', unsafe_allow_html=True)
+  with st.form("geo_novo_local", clear_on_submit=True):
+    nome = st.text_input("NOME DO LOCAL")
+    endereco = st.text_input("ENDEREÇO / REFERÊNCIA")
+    a,b = st.columns(2)
+    lat = a.number_input("LATITUDE", min_value=-90.0, max_value=90.0, value=0.0, format="%.7f")
+    lon = b.number_input("LONGITUDE", min_value=-180.0, max_value=180.0, value=0.0, format="%.7f")
+    c,d = st.columns(2)
+    raio = c.number_input("RAIO (METROS)", min_value=10, max_value=10000, value=150)
+    precisao = d.number_input("PRECISÃO MÁXIMA GPS (METROS)", min_value=5, max_value=1000, value=50)
+    geral = st.checkbox("LIBERAR PARA TODOS OS TÉCNICOS", value=False)
+    if st.form_submit_button("+ SALVAR LOCALIZAÇÃO", use_container_width=True):
+      if not nome.strip() or (lat == 0 and lon == 0):
+        st.error("INFORME NOME E COORDENADAS VÁLIDAS.")
+      else:
+        try:
+          db.table("PONTO_LOCAIS").insert(dict(nome=nome.strip(), endereco=endereco.strip(), latitude=lat, longitude=lon, raio_metros=raio, precisao_max_metros=precisao, liberado_geral=geral, ativo=True)).execute()
+          st.success("LOCAL CADASTRADO.")
+          st.rerun()
+        except Exception as exc:
+          st.error(f"ERRO AO SALVAR: {exc}")
+  st.markdown('<div class="fin-section">LOCAIS CADASTRADOS</div>', unsafe_allow_html=True)
+  for loc in locais:
+    with st.expander(f"📍 {loc['nome'].upper()} · {'ATIVO' if loc['ativo'] else 'BLOQUEADO'}"):
+      with st.form(f"geo_editar_{loc['id']}"):
+        nome_edit = st.text_input("NOME", value=loc['nome'], key=f"nome_{loc['id']}")
+        end_edit = st.text_input("ENDEREÇO", value=loc.get('endereco') or '', key=f"end_{loc['id']}")
+        x,y = st.columns(2)
+        lat_edit = x.number_input("LATITUDE", -90.0, 90.0, float(loc['latitude']), format="%.7f", key=f"lat_{loc['id']}")
+        lon_edit = y.number_input("LONGITUDE", -180.0, 180.0, float(loc['longitude']), format="%.7f", key=f"lon_{loc['id']}")
+        raio_edit = st.number_input("RAIO EM METROS", 10, 10000, int(loc['raio_metros']), key=f"raio_{loc['id']}")
+        precisao_edit = st.number_input("PRECISÃO MÁXIMA", 5, 1000, int(loc['precisao_max_metros']), key=f"prec_{loc['id']}")
+        ativo_edit = st.checkbox("LOCAL ATIVO", value=bool(loc['ativo']), key=f"ativo_{loc['id']}")
+        geral_edit = st.checkbox("LIBERAÇÃO GERAL", value=bool(loc['liberado_geral']), key=f"geral_{loc['id']}")
+        if st.form_submit_button("SALVAR ALTERAÇÕES", use_container_width=True):
+          try:
+            db.table("PONTO_LOCAIS").update(dict(nome=nome_edit.strip(), endereco=end_edit.strip(), latitude=lat_edit, longitude=lon_edit, raio_metros=raio_edit, precisao_max_metros=precisao_edit, ativo=ativo_edit, liberado_geral=geral_edit)).eq("id", loc['id']).execute()
+            st.rerun()
+          except Exception as exc:
+            st.error(str(exc))
+      if st.button("EXCLUIR LOCAL", key=f"excluir_{loc['id']}"):
+        try:
+          db.table("PONTO_LOCAIS").delete().eq("id",loc['id']).execute()
+          st.rerun()
+        except Exception as exc:
+          st.error(str(exc))
+  st.markdown('<div class="fin-section">PERMISSÕES DOS TÉCNICOS</div>', unsafe_allow_html=True)
+  if not tecnicos:
+    st.warning("NENHUM TÉCNICO ENCONTRADO.")
+    return
+  mapa = {f"{t['nome']} · {str(t['cpf']).zfill(11)}": str(t['cpf']).zfill(11) for t in tecnicos}
+  with st.form("geo_permissoes"):
+    selecionado = st.selectbox("TÉCNICO", list(mapa))
+    tipo = st.selectbox("TIPO DE PERMISSÃO", ["LOCAL", "TEMPORARIA", "BLOQUEIO"])
+    opcoes = {l['nome'] + ' · ' + str(l['id']): l['id'] for l in locais}
+    local_sel = st.selectbox("LOCAL", list(opcoes), disabled=tipo=="BLOQUEIO") if opcoes else None
+    dias = st.number_input("DURAÇÃO DA LIBERAÇÃO TEMPORÁRIA (HORAS)", 1, 720, 24, disabled=tipo!="TEMPORARIA")
+    if st.form_submit_button("SALVAR PERMISSÃO", use_container_width=True):
+      if tipo != "BLOQUEIO" and not local_sel:
+        st.error("CADASTRE UM LOCAL PRIMEIRO.")
+      else:
+        try:
+          expiracao = (datetime.now(ZoneInfo("America/Sao_Paulo")) + timedelta(hours=dias)).isoformat() if tipo=="TEMPORARIA" else None
+          db.table("PONTO_PERMISSOES").insert(dict(cpf=mapa[selecionado], tipo=tipo, local_id=opcoes.get(local_sel) if tipo!="BLOQUEIO" else None, expira_em=expiracao, ativo=True)).execute()
+          st.rerun()
+        except Exception as exc:
+          st.error(str(exc))
+  for r in permissoes:
+    c1,c2 = st.columns([5,1])
+    c1.caption(f"{r['cpf']} · {r['tipo']} · LOCAL {r.get('local_id') or 'TODOS'} · {'ATIVO' if r['ativo'] else 'INATIVO'} · EXPIRA {r.get('expira_em') or 'NÃO'}")
+    if c2.button("REVOGAR", key=f"rev_{r['id']}"):
+      try:
+        db.table("PONTO_PERMISSOES").update({"ativo":False}).eq("id",r['id']).execute()
+        st.rerun()
+      except Exception as exc:
+        st.error(str(exc))
 
 
 # --- FUNÇÕES AUXILIARES DE CÁLCULO DE HORAS ---
@@ -221,7 +442,18 @@ SUPABASE_KEY = "sb_publishable_lrV26hcUDDuUpG0_pXSmFQ_S2T35_ZK"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- CONFIGURAÇÃO DO TELEGRAM ---
-TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
+def obter_token_telegram():
+  """Lê token do ambiente ou Secrets sem impedir inicialização local."""
+  token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+  if token:
+    return token
+  try:
+    return str(st.secrets.get("TELEGRAM_BOT_TOKEN", "") or "").strip()
+  except (FileNotFoundError, KeyError):
+    return ""
+
+
+TELEGRAM_BOT_TOKEN = obter_token_telegram()
 
 
 class TelegramNotifier:
@@ -231,6 +463,9 @@ class TelegramNotifier:
     self.base_url = f"https://api.telegram.org/bot{self.token}"
 
   def enviar_mensagem(self, chat_id: str, mensagem: str) -> bool:
+    if not self.token:
+      logger.warning("Notificação Telegram ignorada: TELEGRAM_BOT_TOKEN não configurado.")
+      return False
     url = f"{self.base_url}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -271,57 +506,87 @@ if "autenticado" not in st.session_state:
   st.session_state.usuario_cpf = ""
 
 if not st.session_state.autenticado:
-  st.title("🔐 LRVIX - ACESSO AO SISTEMA")
-  st.write("Insira seu CPF e Senha para entrar.")
+  st.markdown("""<div class="lrvix-login-head"><div class="lrvix-brand-mark">LRVIX</div><h1>Bem-vindo ao LRVIX PONTO</h1><p>Gestão inteligente da jornada de trabalho · Acesso seguro</p></div>""",unsafe_allow_html=True)
+  _, login_col, _ = st.columns([1, 1.25, 1])
 
-  with st.form("form_login"):
-    cpf_input = st.text_input("CPF (Somente números)")
-    senha_input = st.text_input("Senha", type="password")
-    botao_login = st.form_submit_button(
-        "Entrar", use_container_width=True, type="primary"
-    )
 
-    if botao_login:
-      if not cpf_input or not cpf_input.strip():
-        st.warning("⚠️ Por favor, informe o seu CPF.")
-      elif not senha_input or not senha_input.strip():
-        st.warning("⚠️ Por favor, informe a sua Senha.")
-      else:
-        try:
-          cpf_limpo = "".join(filter(str.isdigit, cpf_input)).zfill(11)
-          senha_limpa = senha_input.strip()
+  with login_col:
+   with st.form("form_login"):
+     cpf_input = st.text_input("CPF (Somente números)")
+     senha_input = st.text_input("Senha", type="password")
+     botao_login = st.form_submit_button(
+         "Entrar", use_container_width=True, type="primary"
+     )
 
-          # Consulta o usuário pelo CPF no banco de dados
-          res_login = (
-              supabase.table("TECNICOS")
-              .select("nome, cpf, email, telefone, senha")
-              .eq("cpf", cpf_limpo)
-              .execute()
-          )
+     if botao_login:
+       if not cpf_input or not cpf_input.strip():
+         st.warning("⚠️ Por favor, informe o seu CPF.")
+       elif not senha_input or not senha_input.strip():
+         st.warning("⚠️ Por favor, informe a sua Senha.")
+       else:
+         try:
+           cpf_limpo = "".join(filter(str.isdigit, cpf_input)).zfill(11)
+           senha_limpa = senha_input.strip()
 
-          if res_login.data:
-            usuario = res_login.data[0]
-            senha_cadastrada = str(usuario.get("senha") or "").strip()
+           # Consulta o usuário pelo CPF no banco de dados
+           res_login = (
+               supabase.table("TECNICOS")
+               .select("nome, cpf, email, telefone, senha")
+               .eq("cpf", cpf_limpo)
+               .execute()
+           )
 
-            # Valida se a senha digitada confere com a cadastrada na tabela
-            if senha_cadastrada and senha_limpa == senha_cadastrada:
-              st.session_state.autenticado = True
-              st.session_state.usuario_nome = usuario["nome"]
-              st.session_state.usuario_cpf = str(usuario["cpf"]).zfill(11)
+           if res_login.data:
+             usuario = res_login.data[0]
+             senha_cadastrada = str(usuario.get("senha") or "").strip()
 
-              if st.session_state.usuario_cpf == "08429076700":
-                st.session_state.usuario_perfil = "gestor"
-              else:
-                st.session_state.usuario_perfil = "tecnico"
+             # Valida se a senha digitada confere com a cadastrada na tabela
+             if senha_cadastrada and senha_limpa == senha_cadastrada:
+               st.session_state.autenticado = True
+               st.session_state.usuario_nome = usuario["nome"]
+               st.session_state.usuario_cpf = str(usuario["cpf"]).zfill(11)
 
-              st.success(f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!")
-              st.rerun()
-            else:
-              st.error("❌ Senha incorreta. Tente novamente.")
-          else:
-            st.error("❌ CPF não encontrado na tabela Técnicos.")
-        except Exception as e:
-          st.error(f"Erro ao conectar com o banco: {e}")
+               if st.session_state.usuario_cpf == "08429076700":
+                 st.session_state.usuario_perfil = "gestor"
+               else:
+                 st.session_state.usuario_perfil = "tecnico"
+
+               st.success(f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!")
+               st.rerun()
+             else:
+               st.error("❌ Senha incorreta. Tente novamente.")
+           else:
+             st.error("❌ CPF não encontrado na tabela Técnicos.")
+         except Exception as e:
+           st.error(f"Erro ao conectar com o banco: {e}")
+  # Atalho de instalação PWA: somente interface, sem alterar a autenticação.
+  with login_col:
+    st.markdown("""
+    <style>
+    a.lrvix-install-link {
+      display:block; box-sizing:border-box; width:100%;
+      padding:13px 18px; margin:12px 0 0;
+      border-radius:9px; border:1px solid #69B5F4;
+      background:linear-gradient(115deg,#20558B,#2467A5);
+      color:#F7FAFF !important; text-align:center;
+      text-decoration:none !important; font-size:14px;
+      font-weight:700; line-height:1.35;
+      transition:background .15s ease,border-color .15s ease;
+    }
+    a.lrvix-install-link:hover {
+      background:#1D568B; border-color:#B9DEFF;
+      color:#FFFFFF !important;
+    }
+    a.lrvix-install-link:focus-visible {
+      outline:2px solid #B9DEFF; outline-offset:3px;
+    }
+    </style>
+    <a class="lrvix-install-link"
+       href="https://mmagre-droid.github.io/lrvix-ponto/"
+       target="_blank" rel="noopener noreferrer">
+       ⬇ Instalar aplicativo
+    </a>
+    """, unsafe_allow_html=True)
   st.stop()
 
 # ==========================================
@@ -331,22 +596,42 @@ if not st.session_state.autenticado:
 # A aba "Banco de Horas" fica disponível exclusivamente para o perfil gestor
 if st.session_state.usuario_perfil == "gestor":
   opcoes_menu = [
+      "🏠 Visão Geral",
       "Gestão de Lançamentos",
       "🏦 Banco de Horas",
+      "📍 Gestão de Localizações",
       "📅 Calendário de Folgas",
   ]
 else:
   opcoes_menu = [
+      "🏠 Visão Geral",
       "Registrar Ponto",
       "Gestão de Lançamentos",
       "📅 Calendário de Folgas",
   ]
 
-st.sidebar.title(f"⚡ Olá,\n{st.session_state.usuario_nome}")
+st.sidebar.markdown("### ◈ LRVIX PONTO")
+st.sidebar.markdown(f"**{st.session_state.usuario_nome}**")
 st.sidebar.caption(f"Perfil: {st.session_state.usuario_perfil.upper()}")
 st.sidebar.divider()
 
-menu = st.sidebar.radio("Navegação", opcoes_menu)
+# Navegação em botões com o mesmo padrão visual de "Sair do Sistema".
+if st.session_state.get("menu_lrvix") not in opcoes_menu:
+  st.session_state.menu_lrvix = opcoes_menu[0]
+
+st.sidebar.markdown("**Navegação**")
+for indice, opcao in enumerate(opcoes_menu):
+  selecionado = st.session_state.menu_lrvix == opcao
+  if st.sidebar.button(
+      opcao,
+      key=f"nav_lrvix_{indice}",
+      use_container_width=True,
+      type="primary" if selecionado else "secondary",
+  ):
+    st.session_state.menu_lrvix = opcao
+    st.rerun()
+
+menu = st.session_state.menu_lrvix
 
 st.sidebar.divider()
 if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
@@ -357,10 +642,61 @@ if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
   st.rerun()
 
 # ==========================================
+# DASHBOARD | CONSULTA SOMENTE LEITURA
+# ==========================================
+if menu == "📍 Gestão de Localizações" and st.session_state.usuario_perfil == "gestor":
+  painel_localizacoes()
+
+if menu == "🏠 Visão Geral":
+  from html import escape
+  nome_seguro = escape(str(st.session_state.usuario_nome).split()[0])
+  gestor = st.session_state.usuario_perfil == "gestor"
+  st.markdown('<div class="lrvix-eyebrow">Painel de controle</div>', unsafe_allow_html=True)
+  st.markdown(f'<div class="lrvix-hero"><h2>Olá, {nome_seguro} 👋</h2><p>Seu resumo de jornada e atividades em um só lugar.</p></div>',unsafe_allow_html=True)
+  try:
+    consulta = supabase.table("CONTROLE_PONTO").select("cpf,data,entrada,saida_almoco,retorno_almoco,saida")
+    if not gestor:
+      consulta = consulta.eq("cpf",st.session_state.usuario_cpf)
+    registros = consulta.execute().data or []
+    df_home = pd.DataFrame(registros)
+    hoje_home = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    if not df_home.empty:
+      df_home["data_dt"] = pd.to_datetime(df_home["data"],errors="coerce").dt.date
+      df_mes = df_home[df_home["data_dt"].apply(lambda d: d is not None and pd.notna(d) and d.year==hoje_home.year and d.month==hoje_home.month)].copy()
+      df_hoje = df_home[df_home["data_dt"]==hoje_home]
+      total_trab_seg = total_extra_seg = 0
+      for _, registro in df_mes.iterrows():
+        _,_,trab,extra = calcular_horas_linha({
+          "ENTRADA":registro.get("entrada"),"SAÍDA ALMOÇO":registro.get("saida_almoco"),
+          "RETORNO ALMOÇO":registro.get("retorno_almoco"),"SAÍDA":registro.get("saida")})
+        total_trab_seg += trab
+        total_extra_seg += extra
+      def horas_dashboard(seg):
+        return f"{int(seg//3600):02d}h {int((seg%3600)//60):02d}m"
+      c1,c2,c3,c4=st.columns(4)
+      with c1: st.metric("Registros no mês",len(df_mes))
+      with c2: st.metric("Horas trabalhadas",horas_dashboard(total_trab_seg))
+      with c3: st.metric("Horas extras",horas_dashboard(total_extra_seg))
+      with c4: st.metric("Registros hoje",len(df_hoje))
+      st.subheader("Atividade recente")
+      recentes=df_home.sort_values("data_dt",ascending=False).head(8).copy()
+      recentes=recentes[["data","entrada","saida_almoco","retorno_almoco","saida"]]
+      recentes.columns=["Data","Entrada","Saída almoço","Retorno almoço","Saída"]
+      recentes["Data"]=pd.to_datetime(recentes["Data"]).dt.strftime("%d/%m/%Y")
+      st.dataframe(recentes.fillna(""),hide_index=True,use_container_width=True)
+    else:
+      st.info("Ainda não há registros de ponto para exibir.")
+    st.caption("Indicadores calculados com os registros disponíveis. Horas extras seguem a regra atual de 8 horas líquidas diárias.")
+  except Exception as erro_home:
+    logger.exception("Falha ao carregar dashboard")
+    st.error("Não foi possível carregar os indicadores agora. Verifique a conexão e tente novamente.")
+
+# ==========================================
 # ABA 1: REGISTRAR PONTO (Apenas Técnicos)
 # ==========================================
 if menu == "Registrar Ponto":
-  st.title("⚡ LRVIX - CONTROLE DE PONTO")
+  st.markdown('<div class="lrvix-eyebrow">Jornada de trabalho</div>',unsafe_allow_html=True)
+  st.title("Registrar ponto")
   st.markdown(f"Registrando ponto para: **{st.session_state.usuario_nome}**")
 
   try:
@@ -419,10 +755,44 @@ if menu == "Registrar Ponto":
         logger.error(f"Erro ao validar intervalo: {err}")
       return True, ""
 
+    # Regras do modelo misto consultadas novamente antes de cada gravação.
+    try:
+      _, locais_geo, permissoes_geo = geo_dados()
+      erro_geo = None
+    except Exception as exc:
+      locais_geo, permissoes_geo = [], []
+      erro_geo = str(exc)
+    if streamlit_geolocation is None:
+      st.error("INSTALE STREAMLIT-GEOLOCATION PARA HABILITAR O GPS.")
+      posicao_geo = None
+    else:
+      st.markdown("### 📍 VALIDAÇÃO DE LOCALIZAÇÃO")
+      st.caption("AUTORIZE O GPS. O REGISTRO É BLOQUEADO FORA DAS ZONAS PERMITIDAS.")
+      posicao_geo = streamlit_geolocation()
+    geo_autorizada, geo_mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_geo, permissoes_geo)
+    if erro_geo:
+      geo_autorizada, geo_mensagem = False, "CONFIGURAÇÃO DE LOCALIZAÇÕES INDISPONÍVEL: " + erro_geo
+    if geo_autorizada:
+      st.success("✅ " + geo_mensagem)
+    else:
+      st.warning("🔒 " + geo_mensagem)
+
+    def confirmar_localizacao():
+      try:
+        _, locais_atuais, permissoes_atuais = geo_dados()
+        autorizado, mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_atuais, permissoes_atuais)
+      except Exception as exc:
+        autorizado, mensagem = False, str(exc)
+      if not autorizado:
+        st.error("REGISTRO BLOQUEADO: " + mensagem)
+      return autorizado
+
     if not tem_entrada:
       if st.button(
-          "🟢 REGISTRAR ENTRADA", use_container_width=True, type="primary"
+          "🟢 REGISTRAR ENTRADA", use_container_width=True, type="primary", disabled=not geo_autorizada
       ):
+        if not confirmar_localizacao():
+          st.stop()
         dados_upsert = {
             "cpf": tecnico_cpf,
             "data": hoje,
@@ -449,10 +819,10 @@ if menu == "Registrar Ponto":
       if st.button(
           "🟡 REGISTRAR SAÍDA ALMOÇO",
           use_container_width=True,
-          disabled=not valido,
+          disabled=not (valido and geo_autorizada),
           type="primary",
       ):
-        if valido:
+        if valido and confirmar_localizacao():
           dados_upsert = {
               "cpf": tecnico_cpf,
               "data": hoje,
@@ -479,10 +849,10 @@ if menu == "Registrar Ponto":
       if st.button(
           "🔵 REGISTRAR RETORNO ALMOÇO",
           use_container_width=True,
-          disabled=not valido,
+          disabled=not (valido and geo_autorizada),
           type="primary",
       ):
-        if valido:
+        if valido and confirmar_localizacao():
           dados_upsert = {
               "cpf": tecnico_cpf,
               "data": hoje,
@@ -509,10 +879,10 @@ if menu == "Registrar Ponto":
       if st.button(
           "🔴 REGISTRAR SAÍDA",
           use_container_width=True,
-          disabled=not valido,
+          disabled=not (valido and geo_autorizada),
           type="primary",
       ):
-        if valido:
+        if valido and confirmar_localizacao():
           dados_upsert = {
               "cpf": tecnico_cpf,
               "data": hoje,
@@ -566,7 +936,8 @@ if menu == "Registrar Ponto":
 # ABA 2: GESTÃO DE LANÇAMENTOS E HORAS EXTRAS
 # ==========================================
 elif menu == "Gestão de Lançamentos":
-  st.title("🛠️ Gestão de Lançamentos e Espelho de Ponto")
+  st.markdown('<div class="lrvix-eyebrow">Administração</div>',unsafe_allow_html=True)
+  st.title("Gestão de lançamentos")
 
   try:
     res_ponto = supabase.table("CONTROLE_PONTO").select("*").execute()
@@ -821,7 +1192,8 @@ elif menu == "Gestão de Lançamentos":
 # ABA 3: BANCO DE HORAS (Apenas Gestor/Administrador)
 # ==========================================
 elif menu == "🏦 Banco de Horas":
-  st.title("🏦 Banco de Horas da Equipe")
+  st.markdown('<div class="lrvix-eyebrow">Indicadores da equipe</div>',unsafe_allow_html=True)
+  st.title("Banco de horas")
   st.markdown("Painel consolidado do saldo de horas extras para o gestor.")
 
   if st.session_state.usuario_perfil != "gestor":
@@ -959,7 +1331,8 @@ elif menu == "🏦 Banco de Horas":
 # ABA 4: CALENDÁRIO DE FOLGAS
 # ==========================================
 elif menu == "📅 Calendário de Folgas":
-  st.title("📅 Calendário de Folgas dos Técnicos")
+  st.markdown('<div class="lrvix-eyebrow">Planejamento</div>',unsafe_allow_html=True)
+  st.title("Calendário de folgas")
   st.markdown("Consulte abaixo as folgas agendadas para os técnicos da equipe.")
 
   try:
