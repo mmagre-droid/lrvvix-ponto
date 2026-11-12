@@ -221,7 +221,7 @@ SUPABASE_KEY = "sb_publishable_lrV26hcUDDuUpG0_pXSmFQ_S2T35_ZK"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- CONFIGURAÇÃO DO TELEGRAM ---
-TELEGRAM_BOT_TOKEN = "8795798031:AAEjelcTRk_XQvKWak0-QCgDsl54PMq25l8"
+TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
 
 
 class TelegramNotifier:
