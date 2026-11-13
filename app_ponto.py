@@ -749,27 +749,36 @@ if menu == "Registrar Ponto":
         logger.error(f"Erro ao validar intervalo: {err}")
       return True, ""
 
-    # Regras do modelo misto consultadas novamente antes de cada gravação.
-    try:
-      _, locais_geo, permissoes_geo = geo_dados()
-      erro_geo = None
-    except Exception as exc:
-      locais_geo, permissoes_geo = [], []
-      erro_geo = str(exc)
-    if streamlit_geolocation is None:
-      st.error("INSTALE STREAMLIT-GEOLOCATION PARA HABILITAR O GPS.")
-      posicao_geo = None
+    # GPS exigido apenas na ENTRADA e na SAÍDA FINAL.
+    # O intervalo de almoço mantém as demais regras de horário e sequência.
+    exige_gps = not tem_entrada or (tem_retorno_almoco and not tem_saida)
+    geo_autorizada = False
+    posicao_geo = None
+    if exige_gps:
+      # Regras do modelo misto consultadas novamente antes de cada gravação.
+      try:
+        _, locais_geo, permissoes_geo = geo_dados()
+        erro_geo = None
+      except Exception as exc:
+        locais_geo, permissoes_geo = [], []
+        erro_geo = str(exc)
+      if streamlit_geolocation is None:
+        st.error("INSTALE STREAMLIT-GEOLOCATION PARA HABILITAR O GPS.")
+        posicao_geo = None
+      else:
+        st.markdown("### 📍 VALIDAÇÃO DE LOCALIZAÇÃO")
+        st.caption("AUTORIZE O GPS. O REGISTRO É BLOQUEADO FORA DAS ZONAS PERMITIDAS.")
+        posicao_geo = streamlit_geolocation()
+      geo_autorizada, geo_mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_geo, permissoes_geo)
+      if erro_geo:
+        geo_autorizada, geo_mensagem = False, "CONFIGURAÇÃO DE LOCALIZAÇÕES INDISPONÍVEL: " + erro_geo
+      if geo_autorizada:
+        st.success("✅ " + geo_mensagem)
+      else:
+        st.warning("🔒 " + geo_mensagem)
+
     else:
-      st.markdown("### 📍 VALIDAÇÃO DE LOCALIZAÇÃO")
-      st.caption("AUTORIZE O GPS. O REGISTRO É BLOQUEADO FORA DAS ZONAS PERMITIDAS.")
-      posicao_geo = streamlit_geolocation()
-    geo_autorizada, geo_mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_geo, permissoes_geo)
-    if erro_geo:
-      geo_autorizada, geo_mensagem = False, "CONFIGURAÇÃO DE LOCALIZAÇÕES INDISPONÍVEL: " + erro_geo
-    if geo_autorizada:
-      st.success("✅ " + geo_mensagem)
-    else:
-      st.warning("🔒 " + geo_mensagem)
+      st.info("🍽️ Registro de almoço: geolocalização não obrigatória.")
 
     def confirmar_localizacao():
       try:
@@ -813,10 +822,10 @@ if menu == "Registrar Ponto":
       if st.button(
           "🟡 REGISTRAR SAÍDA ALMOÇO",
           use_container_width=True,
-          disabled=not (valido and geo_autorizada),
+          disabled=not valido,
           type="primary",
       ):
-        if valido and confirmar_localizacao():
+        if valido:
           dados_upsert = {
               "cpf": tecnico_cpf,
               "data": hoje,
@@ -843,10 +852,10 @@ if menu == "Registrar Ponto":
       if st.button(
           "🔵 REGISTRAR RETORNO ALMOÇO",
           use_container_width=True,
-          disabled=not (valido and geo_autorizada),
+          disabled=not valido,
           type="primary",
       ):
-        if valido and confirmar_localizacao():
+        if valido:
           dados_upsert = {
               "cpf": tecnico_cpf,
               "data": hoje,
