@@ -518,6 +518,100 @@ class TelegramNotifier:
 
 telegram = TelegramNotifier(TELEGRAM_BOT_TOKEN)
 
+# --- INTERJORNADA: EVENTOS COM DATA E HORA COMPLETAS ---
+FUSO_PONTO = ZoneInfo("America/Sao_Paulo")
+DESCANSO_INTERJORNADA = timedelta(hours=11)
+TIPOS_PONTO = ("ENTRADA", "SAIDA_ALMOCO", "RETORNO_ALMOCO", "SAIDA")
+
+def instante_evento(evento):
+  instante = datetime.fromisoformat(str(evento["ocorrido_em"]).replace("Z", "+00:00"))
+  return instante.replace(tzinfo=FUSO_PONTO) if instante.tzinfo is None else instante.astimezone(FUSO_PONTO)
+
+def eventos_tecnico(cpf):
+  db = cliente_geo()
+  if db is None:
+    raise RuntimeError("CONFIGURE SUPABASE_SERVICE_ROLE_KEY NOS SECRETS PARA REGISTRAR EVENTOS.")
+  # Consulta paginada: não descartar eventos antigos por limite de 1000 linhas.
+  resultado = []
+  inicio = 0
+  while True:
+    lote = (db.table("PONTO_EVENTOS").select("id,cpf,tipo,modo,ocorrido_em")
+            .eq("cpf", cpf).order("ocorrido_em").range(inicio, inicio + 999).execute().data or [])
+    resultado.extend(lote)
+    if len(lote) < 1000:
+      break
+    inicio += 1000
+  return resultado
+
+def ultima_saida_legada(cpf):
+  # Compatibilidade com pontos anteriores à implantação da tabela de eventos.
+  linhas = (supabase.table("CONTROLE_PONTO").select("data,entrada,saida")
+            .eq("cpf", cpf).order("data", desc=True).limit(30).execute().data or [])
+  for linha in linhas:
+    if linha.get("saida"):
+      try:
+        dia = datetime.strptime(str(linha["data"])[:10], "%Y-%m-%d").date()
+        hora_saida = time.fromisoformat(str(linha["saida"]))
+        saida = datetime.combine(dia, hora_saida, FUSO_PONTO)
+        if linha.get("entrada") and hora_saida < time.fromisoformat(str(linha["entrada"])):
+          saida += timedelta(days=1)
+        return saida
+      except (ValueError, TypeError):
+        continue
+  return None
+
+def estado_interjornada(eventos, agora, ultima_saida_antiga=None):
+  """Define próximo evento; descanso reinicia após cada SAIDA efetiva."""
+  ultimo = eventos[-1] if eventos else None
+  saida = next((instante_evento(e) for e in reversed(eventos) if e["tipo"] == "SAIDA"), None)
+  if saida is None:
+    saida = ultima_saida_antiga
+  fim_descanso = saida + DESCANSO_INTERJORNADA if saida else None
+  em_descanso = bool(fim_descanso and agora < fim_descanso)
+  if ultimo and ultimo["tipo"] != "SAIDA":
+    modo = ultimo["modo"]
+    sequencia = {"ENTRADA":"SAIDA" if modo == "INTERJORNADA" else "SAIDA_ALMOCO",
+                 "SAIDA_ALMOCO":"RETORNO_ALMOCO", "RETORNO_ALMOCO":"SAIDA"}
+    return sequencia.get(ultimo["tipo"], "SAIDA"), modo, fim_descanso
+  return "ENTRADA", "INTERJORNADA" if em_descanso else "NORMAL", fim_descanso
+
+def duracao_formatada(segundos):
+  segundos = max(0, int(segundos))
+  return f"{segundos // 3600:02d}h {(segundos % 3600) // 60:02d}m"
+
+def resumo_eventos(eventos):
+  """Soma períodos efetivos; almoço excluído; extras por jornada >8h e atendimentos de interjornada."""
+  aberto = None
+  inicio_jornada = None
+  total = extra_interjornada = 0.0
+  jornadas = {}
+  for e in eventos:
+    dt = instante_evento(e)
+    tipo = e["tipo"]
+    modo = e["modo"]
+    if tipo == "ENTRADA":
+      aberto = dt
+      inicio_jornada = dt if modo == "NORMAL" else None
+    elif tipo == "SAIDA_ALMOCO" and aberto:
+      segundos = max(0, (dt - aberto).total_seconds())
+      total += segundos
+      if inicio_jornada:
+        jornadas[inicio_jornada] = jornadas.get(inicio_jornada, 0) + segundos
+      aberto = None
+    elif tipo == "RETORNO_ALMOCO":
+      aberto = dt
+    elif tipo == "SAIDA" and aberto:
+      segundos = max(0, (dt - aberto).total_seconds())
+      total += segundos
+      if modo == "INTERJORNADA":
+        extra_interjornada += segundos
+      elif inicio_jornada:
+        jornadas[inicio_jornada] = jornadas.get(inicio_jornada, 0) + segundos
+      aberto = None
+      inicio_jornada = None
+  extras = sum(max(0, seg - 8 * 3600) for seg in jornadas.values()) + extra_interjornada
+  return total, extras
+
 # ==========================================
 # CONTROLE DE SESSÃO E LOGIN (COM VALIDAÇÃO OBRIGATÓRIA DE SENHA)
 # ==========================================
@@ -697,66 +791,29 @@ if menu == "Registrar Ponto":
   try:
     tecnico_cpf = st.session_state.usuario_cpf
     tecnico_nome = st.session_state.usuario_nome
-
-    res_tec = (
-        supabase.table("TECNICOS")
-        .select("telegram_chat_id")
-        .eq("cpf", tecnico_cpf)
-        .execute()
-    )
+    agora = datetime.now(FUSO_PONTO)
+    hoje = agora.date()
+    res_tec = (supabase.table("TECNICOS").select("telegram_chat_id")
+               .eq("cpf", tecnico_cpf).execute())
     chat_id = res_tec.data[0].get("telegram_chat_id") if res_tec.data else None
+    eventos = eventos_tecnico(tecnico_cpf)
+    ultima_legada = ultima_saida_legada(tecnico_cpf) if not eventos else None
+    proximo, modo, fim_descanso = estado_interjornada(eventos, agora, ultima_legada)
 
-    fuso_br = ZoneInfo("America/Sao_Paulo")
-    agora = datetime.now(fuso_br)
+    if fim_descanso:
+      if modo == "INTERJORNADA" or (eventos and eventos[-1]["modo"] == "INTERJORNADA" and eventos[-1]["tipo"] != "SAIDA"):
+        st.warning("⚠️ DESCANSO INTERJORNADA NÃO COMPLETADO. "
+                   f"PRÓXIMO DESCANSO PREVISTO ATÉ {fim_descanso.strftime('%d/%m/%Y %H:%M')}. "
+                   "O REGISTRO DO TRABALHO CONTINUA PERMITIDO.")
+      elif proximo == "ENTRADA":
+        st.success("✅ DESCANSO INTERJORNADA CUMPRIDO. JORNADA NORMAL DISPONÍVEL.")
+    st.caption("JORNADA NORMAL: ENTRADA, ALMOÇO, RETORNO E SAÍDA. "
+               "DURANTE A INTERJORNADA: ENTRADA E SAÍDA, SEM BLOQUEIO POR DESCANSO.")
 
-    hoje = agora.strftime("%Y-%m-%d")
-    horario_atual_str = agora.strftime("%H:%M:%S")
-    horario_exibicao = agora.strftime("%H:%M")
-    data_formatada = agora.strftime("%d/%m/%Y")
-
-    res_hoje = (
-        supabase.table("CONTROLE_PONTO")
-        .select("*")
-        .eq("cpf", tecnico_cpf)
-        .eq("data", hoje)
-        .execute()
-    )
-
-    registro_atual = res_hoje.data[0] if res_hoje.data else {}
-
-    tem_entrada = bool(registro_atual.get("entrada"))
-    tem_saida_almoco = bool(registro_atual.get("saida_almoco"))
-    tem_retorno_almoco = bool(registro_atual.get("retorno_almoco"))
-    tem_saida = bool(registro_atual.get("saida"))
-
-    def validar_intervalo(ultimo_horario_str):
-      if not ultimo_horario_str:
-        return True, ""
-      try:
-        partes = str(ultimo_horario_str).split(":")
-        h, m, s = int(partes[0]), int(partes[1]), int(partes[2].split(".")[0])
-        dt_ultimo = agora.replace(hour=h, minute=m, second=s, microsecond=0)
-        diferenca = agora - dt_ultimo
-
-        if diferenca < timedelta(hours=1):
-          tempo_faltando = timedelta(hours=1) - diferenca
-          minutos_restantes = int(tempo_faltando.total_seconds() // 60)
-          return (
-              False,
-              f"⏳ Aguarde mais {minutos_restantes} minuto(s) para bater o"
-              " próximo ponto (intervalo mínimo de 1 hora).",
-          )
-      except Exception as err:
-        logger.error(f"Erro ao validar intervalo: {err}")
-      return True, ""
-
-    # GPS exigido apenas na ENTRADA e na SAÍDA FINAL.
-    # O intervalo de almoço mantém as demais regras de horário e sequência.
-    exige_gps = not tem_entrada or (tem_retorno_almoco and not tem_saida)
+    exige_gps = proximo in ("ENTRADA", "SAIDA")
     geo_autorizada = False
     posicao_geo = None
     if exige_gps:
-      # Regras do modelo misto consultadas novamente antes de cada gravação.
       try:
         _, locais_geo, permissoes_geo = geo_dados()
         erro_geo = None
@@ -765,10 +822,8 @@ if menu == "Registrar Ponto":
         erro_geo = str(exc)
       if streamlit_geolocation is None:
         st.error("INSTALE STREAMLIT-GEOLOCATION PARA HABILITAR O GPS.")
-        posicao_geo = None
       else:
         st.markdown("### 📍 VALIDAÇÃO DE LOCALIZAÇÃO")
-        st.caption("AUTORIZE O GPS. O REGISTRO É BLOQUEADO FORA DAS ZONAS PERMITIDAS.")
         posicao_geo = streamlit_geolocation()
       geo_autorizada, geo_mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_geo, permissoes_geo)
       if erro_geo:
@@ -777,164 +832,63 @@ if menu == "Registrar Ponto":
         st.success("✅ " + geo_mensagem)
       else:
         st.warning("🔒 " + geo_mensagem)
-
     else:
-      st.info("🍽️ Registro de almoço: geolocalização não obrigatória.")
+      st.info("🍽️ ALMOÇO: GPS NÃO OBRIGATÓRIO.")
 
-    def confirmar_localizacao():
-      try:
-        _, locais_atuais, permissoes_atuais = geo_dados()
-        autorizado, mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_atuais, permissoes_atuais)
-      except Exception as exc:
-        autorizado, mensagem = False, str(exc)
-      if not autorizado:
-        st.error("REGISTRO BLOQUEADO: " + mensagem)
-      return autorizado
-
-    if not tem_entrada:
-      if st.button(
-          "🟢 REGISTRAR ENTRADA", use_container_width=True, type="primary", disabled=not geo_autorizada
-      ):
-        if not confirmar_localizacao():
+    rotulos = {"ENTRADA":"🟢 REGISTRAR ENTRADA", "SAIDA_ALMOCO":"🟡 REGISTRAR SAÍDA ALMOÇO",
+               "RETORNO_ALMOCO":"🔵 REGISTRAR RETORNO ALMOÇO", "SAIDA":"🔴 REGISTRAR SAÍDA"}
+    intervalo_valido = True
+    if eventos and proximo in ("SAIDA_ALMOCO", "RETORNO_ALMOCO", "SAIDA") and modo == "NORMAL":
+      # Mantém o intervalo mínimo de uma hora na jornada normal.
+      ultimo_dt = instante_evento(eventos[-1])
+      if agora - ultimo_dt < timedelta(hours=1):
+        intervalo_valido = False
+        st.warning("⏳ AGUARDE 1 HORA ENTRE MARCAÇÕES DA JORNADA NORMAL.")
+    habilitado = intervalo_valido and (not exige_gps or geo_autorizada)
+    if st.button(rotulos[proximo], type="primary", use_container_width=True, disabled=not habilitado):
+      # Reconsulta os eventos para evitar registrar um tipo desatualizado.
+      atuais = eventos_tecnico(tecnico_cpf)
+      novo_proximo, novo_modo, _ = estado_interjornada(atuais, datetime.now(FUSO_PONTO),
+                                                       ultima_legada if not atuais else None)
+      if (novo_proximo, novo_modo) != (proximo, modo):
+        st.warning("O ESTADO DO PONTO MUDOU. ATUALIZE A TELA.")
+        st.stop()
+      if exige_gps:
+        _, locais_atualizados, permissoes_atualizadas = geo_dados()
+        autorizado, mensagem = autorizacao_mista(tecnico_cpf, posicao_geo, locais_atualizados, permissoes_atualizadas)
+        if not autorizado:
+          st.error("REGISTRO BLOQUEADO POR LOCALIZAÇÃO: " + mensagem)
           st.stop()
-        dados_upsert = {
-            "cpf": tecnico_cpf,
-            "data": hoje,
-            "entrada": horario_atual_str,
-        }
-        supabase.table("CONTROLE_PONTO").upsert(
-            dados_upsert, on_conflict="cpf,data"
-        ).execute()
-        if chat_id:
-          telegram.notificar_ponto(
-              str(chat_id),
-              tecnico_nome,
-              "ENTRADA",
-              horario_exibicao,
-              data_formatada,
-          )
-        st.success(f"ENTRADA registrada às {horario_exibicao}!")
-        st.rerun()
+      instante = datetime.now(FUSO_PONTO)
+      cliente_geo().table("PONTO_EVENTOS").insert({
+          "cpf": tecnico_cpf, "tipo": proximo, "modo": modo,
+          "ocorrido_em": instante.isoformat()
+      }).execute()
+      if chat_id:
+        telegram.notificar_ponto(str(chat_id), tecnico_nome,
+                                proximo.replace("_", " ") + (" (INTERJORNADA)" if modo == "INTERJORNADA" else ""),
+                                instante.strftime("%H:%M"), instante.strftime("%d/%m/%Y"))
+      st.success("PONTO REGISTRADO COM SUCESSO!")
+      st.rerun()
 
-    elif not tem_saida_almoco:
-      valido, aviso = validar_intervalo(registro_atual.get("entrada"))
-      if not valido:
-        st.warning(aviso)
-      if st.button(
-          "🟡 REGISTRAR SAÍDA ALMOÇO",
-          use_container_width=True,
-          disabled=not valido,
-          type="primary",
-      ):
-        if valido:
-          dados_upsert = {
-              "cpf": tecnico_cpf,
-              "data": hoje,
-              "saida_almoco": horario_atual_str,
-          }
-          supabase.table("CONTROLE_PONTO").upsert(
-              dados_upsert, on_conflict="cpf,data"
-          ).execute()
-          if chat_id:
-            telegram.notificar_ponto(
-                str(chat_id),
-                tecnico_nome,
-                "SAÍDA ALMOÇO",
-                horario_exibicao,
-                data_formatada,
-            )
-          st.success(f"SAÍDA ALMOÇO registrada às {horario_exibicao}!")
-          st.rerun()
-
-    elif not tem_retorno_almoco:
-      valido, aviso = validar_intervalo(registro_atual.get("saida_almoco"))
-      if not valido:
-        st.warning(aviso)
-      if st.button(
-          "🔵 REGISTRAR RETORNO ALMOÇO",
-          use_container_width=True,
-          disabled=not valido,
-          type="primary",
-      ):
-        if valido:
-          dados_upsert = {
-              "cpf": tecnico_cpf,
-              "data": hoje,
-              "retorno_almoco": horario_atual_str,
-          }
-          supabase.table("CONTROLE_PONTO").upsert(
-              dados_upsert, on_conflict="cpf,data"
-          ).execute()
-          if chat_id:
-            telegram.notificar_ponto(
-                str(chat_id),
-                tecnico_nome,
-                "RETORNO ALMOÇO",
-                horario_exibicao,
-                data_formatada,
-            )
-          st.success(f"RETORNO ALMOÇO registrado às {horario_exibicao}!")
-          st.rerun()
-
-    elif not tem_saida:
-      valido, aviso = validar_intervalo(registro_atual.get("retorno_almoco"))
-      if not valido:
-        st.warning(aviso)
-      if st.button(
-          "🔴 REGISTRAR SAÍDA",
-          use_container_width=True,
-          disabled=not (valido and geo_autorizada),
-          type="primary",
-      ):
-        if valido and confirmar_localizacao():
-          dados_upsert = {
-              "cpf": tecnico_cpf,
-              "data": hoje,
-              "saida": horario_atual_str,
-          }
-          supabase.table("CONTROLE_PONTO").upsert(
-              dados_upsert, on_conflict="cpf,data"
-          ).execute()
-          if chat_id:
-            telegram.notificar_ponto(
-                str(chat_id),
-                tecnico_nome,
-                "SAÍDA",
-                horario_exibicao,
-                data_formatada,
-            )
-          st.success(f"SAÍDA registrada às {horario_exibicao}!")
-          st.rerun()
+    st.divider()
+    st.subheader("📊 SEUS REGISTROS DE HOJE")
+    recentes = [e for e in eventos if instante_evento(e).date() == hoje]
+    if recentes:
+      st.dataframe(pd.DataFrame([{
+          "DATA": instante_evento(e).strftime("%d/%m/%Y"),
+          "HORÁRIO": instante_evento(e).strftime("%H:%M:%S"),
+          "REGISTRO": e["tipo"].replace("_", " "), "MODO": e["modo"]
+      } for e in recentes]), hide_index=True, use_container_width=True)
     else:
-      st.success("✅ Todos os pontos de hoje já foram registrados!")
-
-    st.markdown("---")
-    st.subheader("📊 Seus Registros de Hoje")
-    if registro_atual:
-      df_regs = pd.DataFrame([registro_atual])
-      colunas_desejadas = [
-          c
-          for c in [
-              "data",
-              "entrada",
-              "saida_almoco",
-              "retorno_almoco",
-              "saida",
-          ]
-          if c in df_regs.columns
-      ]
-      df_regs = df_regs[colunas_desejadas].copy()
-      df_regs.columns = [c.upper().replace("_", " ") for c in df_regs.columns]
-      if "DATA" in df_regs.columns:
-        df_regs["DATA"] = pd.to_datetime(df_regs["DATA"]).dt.strftime(
-            "%d/%m/%Y"
-        )
-      st.dataframe(df_regs, use_container_width=True, hide_index=True)
-    else:
-      st.info("Nenhum ponto registrado hoje ainda.")
-
+      st.info("NENHUM PONTO REGISTRADO HOJE AINDA.")
+    total, extras = resumo_eventos(eventos)
+    c1, c2 = st.columns(2)
+    c1.metric("HORAS TRABALHADAS (EVENTOS)", duracao_formatada(total))
+    c2.metric("HORAS EXTRAS ESTIMADAS (EVENTOS)", duracao_formatada(extras))
   except Exception as e:
-    st.error(f"Erro ao registrar ponto: {e}")
+    logger.exception("Falha no registro de ponto/interjornada")
+    st.error(f"ERRO AO REGISTRAR PONTO: {e}")
 
 # ==========================================
 # ABA 2: GESTÃO DE LANÇAMENTOS E HORAS EXTRAS
