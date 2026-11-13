@@ -39,6 +39,28 @@ div.stButton>button:hover,div.stDownloadButton>button:hover,[data-testid="stForm
 button[kind="primary"],button[data-testid="stBaseButton-primary"]{background:#20558B!important;border-color:#69B5F4!important;color:white!important;}
 [data-testid="stForm"],[data-testid="stExpander"]{background:#0E2543!important;border:1px solid #315477!important;border-radius:10px!important;}
 [data-testid="stForm"]{padding:1.25rem!important;}
+
+/* Login Android: campos escuros permanentes e sem dica de envio com Enter. */
+[data-testid="stForm"] [data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stForm"] [data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stForm"] [data-testid="stTextInput"] input,
+[data-testid="stForm"] [data-testid="stTextInput"] input:focus,
+[data-testid="stForm"] [data-testid="stTextInput"] input:active,
+[data-testid="stForm"] [data-testid="stTextInput"] input:-webkit-autofill,
+[data-testid="stForm"] [data-testid="stTextInput"] input:-webkit-autofill:focus {
+  background-color:#292929!important;
+  color:#F7FAFF!important;
+  -webkit-text-fill-color:#F7FAFF!important;
+  caret-color:#F7FAFF!important;
+  -webkit-box-shadow:0 0 0 1000px #292929 inset!important;
+  box-shadow:0 0 0 1000px #292929 inset!important;
+}
+[data-testid="InputInstructions"],
+[data-testid="stInputInstructions"],
+[data-testid="stForm"] [data-baseweb="input"] [data-testid="InputInstructions"] {
+  display:none!important;
+}
+
 div[data-baseweb="input"]>div,div[data-baseweb="select"]>div,div[data-baseweb="textarea"]>div,[data-testid="stDateInput"] div[data-baseweb="input"]>div{background:#122C4B!important;color:#F7FAFF!important;border-color:#41678E!important;border-radius:8px!important;}
 input,textarea,[data-baseweb="select"] input,[data-baseweb="select"] span{color:#F7FAFF!important;-webkit-text-fill-color:#F7FAFF!important;}
 input::placeholder,textarea::placeholder{color:#AFC5DD!important;}
@@ -559,34 +581,6 @@ if not st.session_state.autenticado:
              st.error("❌ CPF não encontrado na tabela Técnicos.")
          except Exception as e:
            st.error(f"Erro ao conectar com o banco: {e}")
-  # Atalho de instalação PWA: somente interface, sem alterar a autenticação.
-  with login_col:
-    st.markdown("""
-    <style>
-    a.lrvix-install-link {
-      display:block; box-sizing:border-box; width:100%;
-      padding:13px 18px; margin:12px 0 0;
-      border-radius:9px; border:1px solid #69B5F4;
-      background:linear-gradient(115deg,#20558B,#2467A5);
-      color:#F7FAFF !important; text-align:center;
-      text-decoration:none !important; font-size:14px;
-      font-weight:700; line-height:1.35;
-      transition:background .15s ease,border-color .15s ease;
-    }
-    a.lrvix-install-link:hover {
-      background:#1D568B; border-color:#B9DEFF;
-      color:#FFFFFF !important;
-    }
-    a.lrvix-install-link:focus-visible {
-      outline:2px solid #B9DEFF; outline-offset:3px;
-    }
-    </style>
-    <a class="lrvix-install-link"
-       href="https://mmagre-droid.github.io/lrvix-ponto/"
-       target="_blank" rel="noopener noreferrer">
-       ⬇ Instalar aplicativo
-    </a>
-    """, unsafe_allow_html=True)
   st.stop()
 
 # ==========================================
