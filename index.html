@@ -7,35 +7,93 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="LRVIX PONTO">
+
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="apple-touch-icon" href="./icon-192.png">
+
 <title>LRVIX PONTO</title>
+
 <style>
-*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:#0b1627;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;display:grid;place-items:center}main{width:min(100%,480px);text-align:center;padding:28px}img{width:128px;height:128px;object-fit:contain;border-radius:24px}h1{font-size:30px;margin:22px 0 10px}p{color:#cbd5e1;line-height:1.6}a,button{display:block;width:100%;border:1px solid #3776b4;border-radius:12px;padding:15px;margin:14px 0;background:#0756a8;color:white;font-size:16px;font-weight:700;text-decoration:none;cursor:pointer}button[hidden]{display:none}small{color:#a7b6c9;line-height:1.6;display:block;margin-top:16px}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;min-height:100%;background:#0b1627;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
+body{min-height:100dvh}
+main{width:min(100%,480px);margin:auto;text-align:center;padding:60px 28px}
+.logo{width:128px;height:128px;object-fit:contain;border-radius:24px}
+h1{font-size:30px;margin:22px 0 10px}
+p{color:#cbd5e1;line-height:1.6}
+a,button{display:block;width:100%;border:1px solid #3776b4;border-radius:12px;padding:15px;margin:14px 0;background:#0756a8;color:white;font-size:16px;font-weight:700;text-decoration:none;cursor:pointer}
+button[hidden]{display:none}
+small{color:#a7b6c9;line-height:1.6;display:block;margin-top:16px}
+#app-frame{display:none;width:100%;height:100dvh;border:0;background:#0b1627}
+body.installed main{display:none}
+body.installed #app-frame{display:block}
 </style>
 </head>
+
 <body>
 <main>
-<img src="./icon-192.png" alt="Ícone LRVIX PONTO">
+<img class="logo" src="./icon-192.png" alt="LRVIX PONTO">
 <h1>LRVIX PONTO</h1>
-<p id="message">Acesse o controle de ponto ou instale o aplicativo com o ícone personalizado.</p>
-<a id="open" href="https://lrvix-ponto.streamlit.app/">ABRIR SISTEMA</a>
-<button id="install" hidden>INSTALAR APLICATIVO</button>
-<small>Para instalar com o ícone LRVIX, abra esta página no navegador e use a opção de instalação. No iPhone, use Compartilhar → Adicionar à Tela de Início.</small>
+<p>Acesse o controle de ponto ou instale o aplicativo com o ícone personalizado.</p>
+
+<a href="https://lrvix-ponto.streamlit.app/">
+ABRIR SISTEMA
+</a>
+
+<button id="install" hidden>
+INSTALAR APLICATIVO
+</button>
+
+<small>
+No Chrome, utilize a opção de instalação do navegador.
+No iPhone, use Compartilhar → Adicionar à Tela de Início.
+</small>
 </main>
+
+<iframe
+ id="app-frame"
+ title="LRVIX PONTO"
+ allow="geolocation"
+ referrerpolicy="strict-origin-when-cross-origin">
+</iframe>
+
 <script>
-const APP_URL='https://lrvix-ponto.streamlit.app/';
-if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(console.warn)}
+const APP_URL="https://lrvix-ponto.streamlit.app/";
+
+if("serviceWorker" in navigator){
+ navigator.serviceWorker.register("./sw.js")
+ .catch(console.warn);
+}
+
 let deferredPrompt=null;
-const install=document.getElementById('install');
-window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;install.hidden=false});
-install.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;install.hidden=true});
-window.addEventListener('appinstalled',()=>{install.hidden=true});
-const isStandalone=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+const install=document.getElementById("install");
+
+window.addEventListener("beforeinstallprompt",event=>{
+ event.preventDefault();
+ deferredPrompt=event;
+ install.hidden=false;
+});
+
+install.addEventListener("click",async()=>{
+ if(!deferredPrompt)return;
+ deferredPrompt.prompt();
+ await deferredPrompt.userChoice;
+ deferredPrompt=null;
+ install.hidden=true;
+});
+
+window.addEventListener("appinstalled",()=>{
+ install.hidden=true;
+});
+
+const isStandalone=
+ window.matchMedia("(display-mode: standalone)").matches ||
+ window.navigator.standalone===true;
+
 if(isStandalone){
- document.getElementById('message').textContent='Abrindo a tela de login do LRVIX PONTO…';
- window.location.replace(APP_URL);
+ document.body.classList.add("installed");
+ document.getElementById("app-frame").src=APP_URL;
 }
 </script>
 </body>
