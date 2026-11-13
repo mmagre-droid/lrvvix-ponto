@@ -2,24 +2,14 @@
   "id": "./",
   "name": "LRVIX PONTO",
   "short_name": "LRVIX PONTO",
-  "description": "Acesso ao sistema LRVIX PONTO",
+  "description": "Controle de ponto LRVIX - acesso ao sistema",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0b1627",
   "theme_color": "#0756a8",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    {"src":"./icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"}
   ]
 }

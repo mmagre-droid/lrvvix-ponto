@@ -1,1 +1,42 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0756a8"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="LRVIX PONTO"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"><title>LRVIX PONTO</title><style>body{margin:0;min-height:100vh;background:#0b1627;color:white;font-family:system-ui,Arial;display:grid;place-items:center}main{max-width:440px;text-align:center;padding:24px}img{width:132px;border-radius:24px}a,button{display:block;box-sizing:border-box;width:100%;border:0;border-radius:12px;padding:16px;margin:16px 0;background:#0756a8;color:white;font-size:17px;font-weight:700;text-decoration:none;cursor:pointer}p{color:#cbd5e1;line-height:1.5}small{color:#94a3b8}</style></head><body><main><img src="./icon-192.png" alt="Ícone LRVIX PONTO"><h1>LRVIX PONTO</h1><p>Instale este atalho como aplicativo para ter acesso rápido ao sistema.</p><a href="https://lrvix-ponto.streamlit.app/" target="_blank" rel="noopener">ABRIR SISTEMA</a><button id="install" hidden>INSTALAR APLICATIVO</button><p><small>Windows/Android: use a opção Instalar aplicativo do navegador. iPhone: Compartilhar → Adicionar à Tela de Início. O sistema requer internet e abre no Streamlit.</small></p></main><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);let promptEvent;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptEvent=e;document.getElementById('install').hidden=false});document.getElementById('install').onclick=async()=>{if(promptEvent){promptEvent.prompt();await promptEvent.userChoice;promptEvent=null;document.getElementById('install').hidden=true}};</script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0756a8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LRVIX PONTO">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>LRVIX PONTO</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:#0b1627;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;display:grid;place-items:center}main{width:min(100%,480px);text-align:center;padding:28px}img{width:128px;height:128px;object-fit:contain;border-radius:24px}h1{font-size:30px;margin:22px 0 10px}p{color:#cbd5e1;line-height:1.6}a,button{display:block;width:100%;border:1px solid #3776b4;border-radius:12px;padding:15px;margin:14px 0;background:#0756a8;color:white;font-size:16px;font-weight:700;text-decoration:none;cursor:pointer}button[hidden]{display:none}small{color:#a7b6c9;line-height:1.6;display:block;margin-top:16px}
+</style>
+</head>
+<body>
+<main>
+<img src="./icon-192.png" alt="Ícone LRVIX PONTO">
+<h1>LRVIX PONTO</h1>
+<p id="message">Acesse o controle de ponto ou instale o aplicativo com o ícone personalizado.</p>
+<a id="open" href="https://lrvix-ponto.streamlit.app/">ABRIR SISTEMA</a>
+<button id="install" hidden>INSTALAR APLICATIVO</button>
+<small>Para instalar com o ícone LRVIX, abra esta página no navegador e use a opção de instalação. No iPhone, use Compartilhar → Adicionar à Tela de Início.</small>
+</main>
+<script>
+const APP_URL='https://lrvix-ponto.streamlit.app/';
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(console.warn)}
+let deferredPrompt=null;
+const install=document.getElementById('install');
+window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;install.hidden=false});
+install.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;install.hidden=true});
+window.addEventListener('appinstalled',()=>{install.hidden=true});
+const isStandalone=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+if(isStandalone){
+ document.getElementById('message').textContent='Abrindo a tela de login do LRVIX PONTO…';
+ window.location.replace(APP_URL);
+}
+</script>
+</body>
+</html>
