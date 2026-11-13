@@ -573,6 +573,7 @@ if not st.session_state.autenticado:
                else:
                  st.session_state.usuario_perfil = "tecnico"
 
+               st.session_state.menu_lrvix = "Registrar Ponto" if st.session_state.usuario_perfil == "tecnico" else "🏠 Visão Geral"
                st.success(f"✅ Bem-vindo(a), {st.session_state.usuario_nome}!")
                st.rerun()
              else:
@@ -598,8 +599,8 @@ if st.session_state.usuario_perfil == "gestor":
   ]
 else:
   opcoes_menu = [
-      "🏠 Visão Geral",
       "Registrar Ponto",
+      "🏠 Visão Geral",
       "Gestão de Lançamentos",
       "📅 Calendário de Folgas",
   ]
