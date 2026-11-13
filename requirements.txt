@@ -3,3 +3,4 @@ supabase>=2.0.0
 pandas
 fpdf
 reportlab
+streamlit-geolocation
